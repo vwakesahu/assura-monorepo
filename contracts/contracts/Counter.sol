@@ -31,12 +31,12 @@ contract Counter is AssuraVerifierLib {
     function inc(
         bytes32 key,
         bytes calldata attestedData
-    ) public onlyComplianceUser(key, attestedData) {
+    ) public onlyComplianceUser(onlyUserWithScore100.selector, attestedData) {
         x++;
         emit Increment(1);
     }
 
-    function incBy(uint by) public {
+    function incBy(uint by, bytes calldata attestedData) public onlyComplianceUser(onlyUserWithScore30.selector, attestedData) {
         require(by > 0, "incBy: increment should be positive");
         x += by;
         emit Increment(by);

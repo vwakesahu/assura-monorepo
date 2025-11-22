@@ -39,7 +39,8 @@ contract AssuraVerifier {
         return verifyingData[appContractAddress][key];
     }
 
-    function verify(address appContractAddress, bytes32 key, bytes calldata attestedData) public view returns (bool) {
+    function verify(bytes32 key, bytes calldata attestedData) public view returns (bool) {
+        address appContractAddress = msg.sender;
         return true;
     }
 
