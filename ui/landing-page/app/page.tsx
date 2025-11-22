@@ -5,6 +5,10 @@ import Preloader from '../components/Preloader';
 import Landing from '../components/Landing';
 import Projects from '../components/Projects';
 import Description from '../components/Description';
+import Features from '../components/Features';
+import HowItWorks from '../components/HowItWorks';
+import UseCases from '../components/UseCases';
+import Unlock from '../components/Unlock';
 import SlidingImages from '../components/SlidingImages';
 import Footer from '../components/Footer';
 
@@ -28,7 +32,7 @@ export default function Home() {
   }, [])
 
   return (
-    <main>
+    <main className='bg-gradient-to-br from-card via-background to-card'>
       <AnimatePresence mode='wait'>
         {isLoading && <Preloader />}
       </AnimatePresence>
@@ -40,6 +44,18 @@ export default function Home() {
       </div>
       <div id="projects">
         <Projects />
+      </div>
+      <div id="features">
+        <Features />
+      </div>
+      <div id="how-it-works">
+        <HowItWorks />
+      </div>
+      <div id="use-cases">
+        <UseCases />
+      </div>
+      <div id="unlock">
+        <Unlock />
       </div>
       <div id="sliding-images">
         <SlidingImages />
