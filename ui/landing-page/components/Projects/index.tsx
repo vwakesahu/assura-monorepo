@@ -1,103 +1,117 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import Project from './components/Project';
-import { motion } from 'motion/react';
-import gsap from 'gsap';
-import Image from 'next/image';
-import RoundedButton from '../common/RoundedButton';
+import { useInView, motion } from 'motion/react';
+import { useRef } from 'react';
+import React from 'react';
 
 const projects = [
     {
-        title: "Confidence Score",
-        description: "Numeric score 0-1000 evaluating wallet activity and identity level",
-        src: "confidence-score.png",
+        title: "Protocols and Infrastructure",
+        description: "Design secure ecosystems. Embed compliance rules into bridges, RPCs, nodes, and sequencers",
+        src: "protocols.png",
         color: "hsl(var(--foreground))"
     },
     {
-        title: "Time",
-        description: "Time-based lock with user-owned smart accounts for compliance",
-        src: "time.png",
+        title: "Asset Issuers",
+        description: "Build regulated rails. Implement dynamic blacklists to control asset flows",
+        src: "assets.png",
         color: "hsl(var(--muted))"
     },
     {
-        title: "Expiry",
-        description: "All attestations include expiry and must be refreshed when expired",
-        src: "expiry.png",
+        title: "DeFi",
+        description: "Onboard institutional capital. Ensure clean assets in vaults, liquidity pools, and trading platforms",
+        src: "defi.png",
         color: "hsl(var(--secondary))"
     },
     {
-        title: "Config",
-        description: "Fully programmable compliance rules configured in your smart contract",
-        src: "config.png",
+        title: "AI Agents and Wallets",
+        description: "Protect users. Power guardrails to avert exploits, enforce transaction rules, and prevent fraud",
+        src: "ai.png",
         color: "hsl(var(--muted-foreground))"
+    },
+    {
+        title: "Privacy",
+        description: "Enable compliant transactions. Enforce AML/CFT rules for private payments and networks",
+        src: "privacy.png",
+        color: "hsl(var(--foreground))"
+    },
+    {
+        title: "Real World Assets",
+        description: "Verify liquidity requirements. Meet the expectations of financial institutions and prevent commingling of funds",
+        src: "rwa.png",
+        color: "hsl(var(--muted))"
     }
 ]
 
-const scaleAnimation = {
-    initial: { scale: 0, x: "-50%", y: "-50%" },
-    enter: { scale: 1, x: "-50%", y: "-50%", transition: { duration: 0.4, ease: [0.76, 0, 0.24, 1] as const } },
-    closed: { scale: 0, x: "-50%", y: "-50%", transition: { duration: 0.4, ease: [0.32, 0, 0.67, 0] as const } }
+const slideUp = {
+    initial: {
+        y: "100%"
+    },
+    open: (i: number) => ({
+        y: "0%",
+        transition: { duration: 0.5, delay: 0.01 * i }
+    }),
+    closed: {
+        y: "100%",
+        transition: { duration: 0.5 }
+    }
+}
+
+const opacity = {
+    initial: {
+        opacity: 0
+    },
+    open: {
+        opacity: 1,
+        transition: { duration: 0.5 }
+    },
+    closed: {
+        opacity: 0,
+        transition: { duration: 0.5 }
+    }
 }
 
 export default function Projects() {
-    const [modal, setModal] = useState({ active: false, index: 0 })
-    const { active, index } = modal;
-    const modalContainer = useRef<HTMLDivElement>(null);
-    const cursor = useRef<HTMLDivElement>(null);
-    const cursorLabel = useRef<HTMLDivElement>(null);
-
-    let xMoveContainer = useRef<((x: number) => void) | null>(null);
-    let yMoveContainer = useRef<((y: number) => void) | null>(null);
-    let xMoveCursor = useRef<((x: number) => void) | null>(null);
-    let yMoveCursor = useRef<((y: number) => void) | null>(null);
-    let xMoveCursorLabel = useRef<((x: number) => void) | null>(null);
-    let yMoveCursorLabel = useRef<((y: number) => void) | null>(null);
-
-    useEffect(() => {
-        if (!modalContainer.current || !cursor.current || !cursorLabel.current) return;
-
-        //Move Container
-        xMoveContainer.current = gsap.quickTo(modalContainer.current, "left", { duration: 0.8, ease: "power3" })
-        yMoveContainer.current = gsap.quickTo(modalContainer.current, "top", { duration: 0.8, ease: "power3" })
-        //Move cursor
-        xMoveCursor.current = gsap.quickTo(cursor.current, "left", { duration: 0.5, ease: "power3" })
-        yMoveCursor.current = gsap.quickTo(cursor.current, "top", { duration: 0.5, ease: "power3" })
-        //Move cursor label
-        xMoveCursorLabel.current = gsap.quickTo(cursorLabel.current, "left", { duration: 0.45, ease: "power3" })
-        yMoveCursorLabel.current = gsap.quickTo(cursorLabel.current, "top", { duration: 0.45, ease: "power3" })
-    }, [])
-
-    const moveItems = (x: number, y: number) => {
-        xMoveContainer.current?.(x)
-        yMoveContainer.current?.(y)
-        xMoveCursor.current?.(x)
-        yMoveCursor.current?.(y)
-        xMoveCursorLabel.current?.(x)
-        yMoveCursorLabel.current?.(y)
-    }
-
-    const manageModal = (active: boolean, index: number, x: number, y: number) => {
-        moveItems(x, y)
-        setModal({ active, index })
-    }
+    const projectsRef = useRef<HTMLDivElement>(null);
+    const isInView = useInView(projectsRef);
 
     return (
-        <main
-            onMouseMove={(e) => { moveItems(e.clientX, e.clientY) }}
-            className="flex items-center pl-[200px] pr-[200px] flex-col mt-[300px]"
-        >
-            <div className="max-w-[1400px] w-full flex flex-col items-center justify-center mb-[100px]">
-                {
-                    projects.map((project, index) => {
-                        return <Project index={index} title={project.title} description={project.description} manageModal={manageModal} key={index} />
-                    })
-                }
+        <div ref={projectsRef} className="pl-[200px] pr-[200px] mt-[300px] flex justify-center">
+            <div className="max-w-[1400px] w-full">
+                <div className="grid grid-cols-2 gap-x-[100px] gap-y-[80px]">
+                    {projects.map((project, index) => (
+                        <React.Fragment key={index}>
+                            <div>
+                                <h2 className="text-[48px] m-0 font-normal text-foreground">
+                                    {project.title.split(" ").map((word, i) => (
+                                        <span key={i} className="relative overflow-hidden inline-flex mr-[3px]">
+                                            <motion.span
+                                                variants={slideUp}
+                                                custom={i + index * 2}
+                                                animate={isInView ? "open" : "closed"}
+                                                initial="initial"
+                                            >
+                                                {word}
+                                            </motion.span>
+                                        </span>
+                                    ))}
+                                </h2>
+                            </div>
+                            <div>
+                                <motion.p
+                                    variants={opacity}
+                                    animate={isInView ? "open" : "closed"}
+                                    initial="initial"
+                                    custom={index + 0.2}
+                                    className="text-lg font-light text-muted-foreground leading-relaxed m-0"
+                                >
+                                    {project.description}
+                                </motion.p>
+                            </div>
+                        </React.Fragment>
+                    ))}
+                </div>
             </div>
-            {/* <RoundedButton>
-                <p>View docs</p>
-            </RoundedButton> */}
-
-        </main>
+        </div>
     )
 }
 

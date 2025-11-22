@@ -1,7 +1,6 @@
 'use client'
 import { useInView, motion } from 'motion/react';
 import { useRef } from 'react';
-import RoundedButton from '../common/RoundedButton';
 
 const slideUp = {
     initial: {
@@ -31,15 +30,18 @@ const opacity = {
     }
 }
 
-export default function Description() {
-    const phrase = "Policy for blockchain applications. Define transaction rules to secure financial products and enforce compliance requirements.";
-    const description = useRef<HTMLDivElement>(null);
-    const isInView = useInView(description)
+export default function Unlock() {
+    const phrase = "Unlock the $410T Global Financial System with Assura";
+    const unlock = useRef<HTMLDivElement>(null);
+    const isInView = useInView(unlock);
+
+    return null
 
     return (
-        <div ref={description} className="pl-[200px] pr-[200px] mt-[200px] flex justify-center">
-            <div className="max-w-[1400px] flex gap-[50px] relative">
-                <p className="m-0 text-[36px] gap-[8px] leading-[1.3]">
+
+        <div ref={unlock} className="pl-[200px] pr-[200px] mt-[200px] flex justify-center">
+            <div className="max-w-[1400px] flex flex-col gap-[50px] relative">
+                <p className="m-0 text-[36px] gap-[8px] leading-[1.3] text-center">
                     {
                         phrase.split(" ").map((word, index) => {
                             return (
@@ -60,11 +62,10 @@ export default function Description() {
                 <motion.p
                     variants={opacity}
                     animate={isInView ? "open" : "closed"}
-                    className="m-0 text-lg w-[80%] font-light"
+                    className="m-0 text-lg font-light text-center"
                 >
-                    Assura enables financial technology companies to enforce compliance and business rule requirements for applications built on public blockchains.
+                    The next wave of financial innovation will come from bringing regulated markets onchain. Assura enables institutions to securely participate in digital asset markets while meeting their business and regulatory requirements.
                 </motion.p>
-
             </div>
         </div>
     )

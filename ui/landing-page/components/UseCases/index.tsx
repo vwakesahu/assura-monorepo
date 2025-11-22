@@ -31,9 +31,9 @@ const opacity = {
 }
 
 const useCases = [
-    "Institutions",
-    "App Builders",
-    "Users"
+    "Protocols",
+    "Asset Issuers",
+    "DeFi"
 ]
 
 export default function UseCases() {

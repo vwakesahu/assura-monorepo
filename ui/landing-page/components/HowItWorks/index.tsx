@@ -31,10 +31,9 @@ const opacity = {
 }
 
 const steps = [
-    "Integrate",
-    "Attest",
-    "Verify",
-    "Configure"
+    "Programmable Policy",
+    "Offchain API",
+    "Onchain Enforcement"
 ]
 
 export default function HowItWorks() {

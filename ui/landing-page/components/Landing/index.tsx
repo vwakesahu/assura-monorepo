@@ -63,14 +63,14 @@ export default function Landing() {
 
             {/* Centered content */}
             <div className="absolute top-[25%] left-1/2 -translate-x-1/2 max-w-[500px] text-foreground text-center">
-                <p className="text-lg font-light mb-4">Compliance for</p>
-                <p className='text-5xl font-light leading-tight'>For Institutions<br />Builders & Users</p>
+                <p className="text-lg font-light mb-4">Securing the next</p>
+                <p className='text-5xl font-light leading-tight'>Generation of Financial<br />Applications</p>
             </div>
 
             <div className="absolute top-[calc(100vh-350px)]">
                 <div ref={slider} className="relative whitespace-nowrap">
-                    <p ref={firstText} className="relative m-0 text-foreground text-[230px] font-medium pr-[50px]">Compliance Layer -</p>
-                    <p ref={secondText} className="absolute left-full top-0 m-0 text-foreground text-[230px] font-medium pr-[50px]">Compliance Layer -</p>
+                    <p ref={firstText} className="relative m-0 text-foreground text-[230px] font-medium pr-[50px]">Policy Layer -</p>
+                    <p ref={secondText} className="absolute left-full top-0 m-0 text-foreground text-[230px] font-medium pr-[50px]">Policy Layer -</p>
                 </div>
             </div>
         </motion.main>
