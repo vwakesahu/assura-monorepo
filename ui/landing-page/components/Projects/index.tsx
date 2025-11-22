@@ -96,7 +96,7 @@ export default function Projects() {
             <RoundedButton>
                 <p>View docs</p>
             </RoundedButton>
-           
+
         </main>
     )
 }

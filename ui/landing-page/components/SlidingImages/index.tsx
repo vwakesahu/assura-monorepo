@@ -61,7 +61,7 @@ export default function SlidingImages() {
 
     return (
         <div ref={container} className="flex flex-col gap-[3vw] relative mt-[200px] bg-background z-[1]">
-            
+
             <motion.div style={{ height }} className="relative mt-[100px]">
                 <div className="h-[1550%] w-[120%] -left-[10%] rounded-[0_0_50%_50%] bg-background z-[1] absolute shadow-[0px_60px_50px_rgba(0,0,0,0.748)]"></div>
             </motion.div>
