@@ -68,7 +68,7 @@ struct ActualAttestedData {
 
 #### 4. VerifyingData Structure
 
-Requirements set by application contracts:
+Requirements set by application contracts (from `AssuraTypes`):
 
 ```solidity
 struct VerifyingData {
@@ -77,6 +77,8 @@ struct VerifyingData {
     uint256 chainId;  // Required chain ID (0 = any chain)
 }
 ```
+
+**Note**: Import from `AssuraTypes`: `import {AssuraTypes} from "./assura/types/AssuraTypes.sol";`
 
 ## Verification Flow
 
@@ -101,16 +103,17 @@ struct VerifyingData {
    - Function uses `onlyComplianceUser` modifier
 
 4. **Verification Process**:
-   - Modifier calls `assuraVerifier.verify(app, key, complianceData)`
+   - Modifier calls `AssuraVerifierLib.requireCompliance(verifier, app, key, complianceData)`
+   - Library helper calls `assuraVerifier.verify(app, key, complianceData)`
    - AssuraVerifier:
      - Decodes `ComplianceData` from bytes
      - Verifies key matches function selector
-     - Recovers signer from TEE signature using `ecrecover`
+     - Validates TEE signature (supports EIP-712 and EIP-191)
      - Validates signer matches `ASSURA_TEE_ADDRESS`
      - Checks expiry (if set)
      - Checks chainId (if set)
      - Validates score meets requirement
-   - Returns `true` if all checks pass
+   - Returns `true` if all checks pass, otherwise reverts with error message
 
 5. **Function Execution**:
    - If verification passes, function executes
@@ -123,22 +126,32 @@ The `Counter` contract demonstrates how to use AssuraVerifier:
 ### Setup
 
 ```solidity
+import {IAssuraVerifier} from "./assura/IAssuraVerifier.sol";
+import {AssuraTypes} from "./assura/types/AssuraTypes.sol";
+import {AssuraVerifierLib} from "./assura/libraries/AssuraVerifierLib.sol";
+
 constructor(address _assuraVerifier) {
     assuraVerifier = IAssuraVerifier(_assuraVerifier);
     
     // Set requirements: inc() requires score >= 100
     assuraVerifier.setVerifyingData(
         address(this),
-        this.inc.selector,
-        VerifyingData({score: 100, expiry: 0, chainId: 0})
+        bytes32(this.inc.selector),
+        AssuraTypes.VerifyingData({score: 100, expiry: 0, chainId: 0})
     );
     
     // Set requirements: incBy() requires score >= 30
     assuraVerifier.setVerifyingData(
         address(this),
-        this.incBy.selector,
-        VerifyingData({score: 30, expiry: 0, chainId: 0})
+        bytes32(this.incBy.selector),
+        AssuraTypes.VerifyingData({score: 30, expiry: 0, chainId: 0})
     );
+}
+
+// Modifier using library helper
+modifier onlyComplianceUser(bytes32 key, bytes calldata attestedData) {
+    AssuraVerifierLib.requireCompliance(assuraVerifier, address(this), key, attestedData);
+    _;
 }
 ```
 
@@ -148,7 +161,7 @@ constructor(address _assuraVerifier) {
 // User must provide valid compliance data
 function inc(bytes calldata attestedData) 
     public 
-    onlyComplianceUser(this.inc.selector, attestedData) 
+    onlyComplianceUser(bytes32(this.inc.selector), attestedData) 
 {
     x++;
     emit Increment(1);
@@ -250,34 +263,43 @@ Counter counter = new Counter(address(verifier));
 
 To integrate Assura into your smart contract:
 
-1. **Import IAssuraVerifier**:
+1. **Import Required Modules**:
    ```solidity
-   import {IAssuraVerifier, VerifyingData} from "./assura/IAssuraVerifier.sol";
+   import {IAssuraVerifier} from "./assura/IAssuraVerifier.sol";
+   import {AssuraTypes} from "./assura/types/AssuraTypes.sol";
+   import {AssuraVerifierLib} from "./assura/libraries/AssuraVerifierLib.sol";
    ```
 
 2. **Store Verifier Reference**:
    ```solidity
-   IAssuraVerifier public assuraVerifier;
+   IAssuraVerifier public immutable assuraVerifier;
+   bytes32 public immutable verificationKey;
    ```
 
 3. **Set Requirements in Constructor**:
    ```solidity
-   constructor(address _assuraVerifier) {
+   constructor(address _assuraVerifier, bytes32 _key) {
        assuraVerifier = IAssuraVerifier(_assuraVerifier);
-       assuraVerifier.setVerifyingData(
-           address(this),
-           this.myFunction.selector,
-           VerifyingData({score: 50, expiry: 0, chainId: 0})
-       );
+       verificationKey = _key;
+       
+       AssuraTypes.VerifyingData memory req = AssuraTypes.VerifyingData({
+           score: 50,
+           expiry: 0,
+           chainId: 0
+       });
+       
+       assuraVerifier.setVerifyingData(address(this), _key, req);
    }
    ```
 
-4. **Add Compliance Modifier**:
+4. **Add Compliance Modifier Using Library Helper**:
    ```solidity
-   modifier onlyComplianceUser(bytes32 key, bytes calldata attestedData) {
-       require(
-           assuraVerifier.verify(address(this), key, attestedData),
-           "Not a compliance user"
+   modifier onlyComplianceUser(bytes calldata attestedData) {
+       AssuraVerifierLib.requireCompliance(
+           assuraVerifier,
+           address(this),
+           verificationKey,
+           attestedData
        );
        _;
    }
@@ -287,9 +309,10 @@ To integrate Assura into your smart contract:
    ```solidity
    function myFunction(bytes calldata attestedData) 
        public 
-       onlyComplianceUser(this.myFunction.selector, attestedData) 
+       onlyComplianceUser(attestedData) 
    {
        // Your function logic
+       // Compliance is already verified by the modifier!
    }
    ```
 

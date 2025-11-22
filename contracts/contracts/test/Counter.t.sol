@@ -209,7 +209,7 @@ contract CounterTest is Test {
         
         // Call inc() should fail due to insufficient score
         vm.prank(user);
-        vm.expectRevert("Not a compliance user");
+        vm.expectRevert("AssuraVerifierLib: Compliance verification failed");
         counter.inc(encodedComplianceData);
     }
 

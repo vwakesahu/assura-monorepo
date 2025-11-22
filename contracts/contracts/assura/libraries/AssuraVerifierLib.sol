@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {AssuraTypes} from "../types/AssuraTypes.sol";
+import {IAssuraVerifier} from "../IAssuraVerifier.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 /**
@@ -105,6 +106,31 @@ library AssuraVerifierLib {
         bytes calldata data
     ) internal pure returns (AssuraTypes.ComplianceData memory) {
         return abi.decode(data, (AssuraTypes.ComplianceData));
+    }
+
+    /**
+     * @notice Verify compliance and revert if verification fails
+     * @dev Use this function in modifiers to check compliance
+     * @param verifier The AssuraVerifier contract instance
+     * @param app The app contract address
+     * @param key The verification key identifier
+     * @param attestedComplianceData The encoded compliance data to verify
+     * @custom:example
+     * ```solidity
+     * modifier onlyCompliant(bytes32 key, bytes calldata complianceData) {
+     *     AssuraVerifierLib.requireCompliance(assuraVerifier, address(this), key, complianceData);
+     *     _;
+     * }
+     * ```
+     */
+    function requireCompliance(
+        IAssuraVerifier verifier,
+        address app,
+        bytes32 key,
+        bytes calldata attestedComplianceData
+    ) internal view {
+        bool isValid = verifier.verify(app, key, attestedComplianceData);
+        require(isValid, "AssuraVerifierLib: Compliance verification failed");
     }
 }
 

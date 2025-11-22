@@ -49,6 +49,7 @@ Provides reusable verification functions:
 - `verifySignature()`: Verifies TEE signatures (supports EIP-712 and EIP-191)
 - `checkRequirements()`: Validates compliance against requirements
 - `decodeComplianceData()`: Decodes compliance data from bytes
+- `requireCompliance()`: **Helper function for modifiers** - Verifies compliance and reverts if failed
 
 ### Main Contract (`AssuraVerifier.sol`)
 
@@ -99,7 +100,41 @@ contract MyContract {
 
 ### 3. Verify Compliance
 
-Before allowing sensitive operations:
+#### Option A: Using the Library Modifier Helper (Recommended)
+
+Create a modifier using `AssuraVerifierLib.requireCompliance()`:
+
+```solidity
+import {AssuraVerifierLib} from "./assura/libraries/AssuraVerifierLib.sol";
+
+contract MyContract {
+    IAssuraVerifier public immutable assuraVerifier;
+    bytes32 public immutable verificationKey;
+    
+    modifier onlyCompliant(bytes calldata complianceData) {
+        AssuraVerifierLib.requireCompliance(
+            assuraVerifier,
+            address(this),
+            verificationKey,
+            complianceData
+        );
+        _;
+    }
+    
+    function deposit(uint256 amount, bytes calldata complianceData) 
+        external 
+        onlyCompliant(complianceData) 
+    {
+        // Compliance is already verified by the modifier!
+        // Proceed with deposit
+        // ...
+    }
+}
+```
+
+#### Option B: Manual Verification
+
+If you need more control, verify manually:
 
 ```solidity
 function deposit(uint256 amount, bytes calldata complianceData) external {
@@ -111,7 +146,7 @@ function deposit(uint256 amount, bytes calldata complianceData) external {
     
     // Decode to get user info
     AssuraTypes.ComplianceData memory data = 
-        abi.decode(complianceData, (AssuraTypes.ComplianceData));
+        AssuraVerifierLib.decodeComplianceData(complianceData);
     
     require(data.userAddress == msg.sender, "Invalid user");
     

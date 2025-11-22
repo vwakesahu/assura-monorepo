@@ -6,6 +6,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAssuraVerifier} from "../IAssuraVerifier.sol";
 import {AssuraTypes} from "../types/AssuraTypes.sol";
+import {AssuraVerifierLib} from "../libraries/AssuraVerifierLib.sol";
 
 /**
  * @title AssuraProtectedVault
@@ -60,6 +61,31 @@ contract AssuraProtectedVault is ERC4626 {
     }
 
     /**
+     * @notice Modifier to check compliance before allowing operations
+     * @dev Uses AssuraVerifierLib for easy compliance checking
+     */
+    modifier onlyCompliant(bytes calldata attestedComplianceData) {
+        AssuraVerifierLib.requireCompliance(
+            assuraVerifier,
+            address(this),
+            verificationKey,
+            attestedComplianceData
+        );
+        
+        // Decode to get user address and score
+        AssuraTypes.ComplianceData memory complianceData = 
+            AssuraVerifierLib.decodeComplianceData(attestedComplianceData);
+        
+        require(
+            complianceData.userAddress == msg.sender,
+            "Vault: Compliance data must be for caller"
+        );
+        
+        emit ComplianceVerified(msg.sender, complianceData.actualAttestedData.score);
+        _;
+    }
+
+    /**
      * @notice Deposit assets with compliance verification
      * @param assets Amount of assets to deposit
      * @param receiver Address to receive shares
@@ -70,25 +96,7 @@ contract AssuraProtectedVault is ERC4626 {
         uint256 assets,
         address receiver,
         bytes calldata attestedComplianceData
-    ) external returns (uint256 shares) {
-        // Verify compliance
-        require(
-            assuraVerifier.verify(address(this), verificationKey, attestedComplianceData),
-            "Vault: Compliance verification failed"
-        );
-        
-        // Decode to get user address and score
-        AssuraTypes.ComplianceData memory complianceData = 
-            abi.decode(attestedComplianceData, (AssuraTypes.ComplianceData));
-        
-        require(
-            complianceData.userAddress == msg.sender,
-            "Vault: Compliance data must be for caller"
-        );
-        
-        emit ComplianceVerified(msg.sender, complianceData.actualAttestedData.score);
-        
-        // Proceed with deposit
+    ) external onlyCompliant(attestedComplianceData) returns (uint256 shares) {
         return deposit(assets, receiver);
     }
 
@@ -103,25 +111,7 @@ contract AssuraProtectedVault is ERC4626 {
         uint256 shares,
         address receiver,
         bytes calldata attestedComplianceData
-    ) external returns (uint256 assets) {
-        // Verify compliance
-        require(
-            assuraVerifier.verify(address(this), verificationKey, attestedComplianceData),
-            "Vault: Compliance verification failed"
-        );
-        
-        // Decode to get user address
-        AssuraTypes.ComplianceData memory complianceData = 
-            abi.decode(attestedComplianceData, (AssuraTypes.ComplianceData));
-        
-        require(
-            complianceData.userAddress == msg.sender,
-            "Vault: Compliance data must be for caller"
-        );
-        
-        emit ComplianceVerified(msg.sender, complianceData.actualAttestedData.score);
-        
-        // Proceed with mint
+    ) external onlyCompliant(attestedComplianceData) returns (uint256 assets) {
         return mint(shares, receiver);
     }
 

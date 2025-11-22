@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {IAssuraVerifier} from "./assura/IAssuraVerifier.sol";
 import {AssuraTypes} from "./assura/types/AssuraTypes.sol";
+import {AssuraVerifierLib} from "./assura/libraries/AssuraVerifierLib.sol";
 
 contract Counter {
     IAssuraVerifier public assuraVerifier;
@@ -45,10 +46,7 @@ contract Counter {
     }
 
     modifier onlyComplianceUser(bytes32 key, bytes calldata attestedData) {
-        require(
-            assuraVerifier.verify(address(this), key, attestedData),
-            "Not a compliance user"
-        );
+        AssuraVerifierLib.requireCompliance(assuraVerifier, address(this), key, attestedData);
         _;
     }
 
