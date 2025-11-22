@@ -1,7 +1,7 @@
 services:
   mycontainer:
     build: .
-    image: "docker.io/org_name/image_name"      # Always provide FQDN image names!
+    image: "docker.io/0xswayam/my-app:latest"   # Always provide FQDN image names!
     platform: linux/amd64
     volumes:
       - my-volume:/root/.my-volume              # Persistent per-machine storage.
