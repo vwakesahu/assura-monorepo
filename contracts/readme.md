@@ -164,9 +164,32 @@ function inc(bytes calldata attestedData)
 5. **Chain Validation**: Can enforce chain-specific requirements
 6. **Access Control**: Only application contracts can set their own verification data
 
+## Setup
+
+### Prerequisites
+
+- Node.js (v18 or higher)
+- pnpm (or npm/yarn)
+
+### Installation
+
+```bash
+# Install dependencies
+pnpm install
+```
+
+### Dependencies
+
+The project uses:
+- **Hardhat 3**: Development environment and testing framework
+- **forge-std**: Solidity testing utilities (for assertion libraries like `Test.sol`)
+- **Solidity ^0.8.28**: Smart contract language
+
+The tests use `forge-std/Test.sol` for better assertion messages and testing utilities, which is compatible with Hardhat 3's Solidity testing.
+
 ## Testing
 
-The project includes comprehensive Foundry tests in `contracts/test/Counter.t.sol` that demonstrate:
+The project includes comprehensive Solidity tests in `contracts/test/Counter.t.sol` (following Hardhat 3's `.t.sol` convention) that demonstrate:
 
 - Contract deployment
 - Valid compliance attestations
@@ -177,16 +200,29 @@ The project includes comprehensive Foundry tests in `contracts/test/Counter.t.so
 
 ### Running Tests
 
+In Hardhat 3, Solidity test files are located in:
+- `test/` directory, OR
+- `contracts/` directory with `.t.sol` extension (as used in this project)
+
+To run tests:
+
 ```bash
-# Run all tests
+# Run all tests (both Solidity and TypeScript)
 npx hardhat test
 
-# Run only Solidity tests
+# Run only Solidity tests (recommended for this project)
 npx hardhat test solidity
 
 # Run only TypeScript tests
 npx hardhat test nodejs
+
+# Run a specific test file
+npx hardhat test solidity contracts/test/Counter.t.sol
 ```
+
+**Note**: If you encounter compilation errors related to OpenZeppelin dependencies in `node_modules`, make sure you're running `npx hardhat test solidity` which will only compile and test your Solidity files, not the entire `node_modules` directory.
+
+For more information on Hardhat 3 Solidity testing, see the [official documentation](https://hardhat.org/docs/guides/testing/using-solidity).
 
 ## Deployment
 

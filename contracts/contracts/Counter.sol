@@ -17,12 +17,12 @@ contract Counter {
         return VerifyingData({score: 30, expiry: 0, chainId: 0});
     }
 
-    function _getIncSelector() internal pure returns (bytes4) {
-        return this.inc.selector;
+    function _getIncSelector() internal pure returns (bytes32) {
+        return bytes32(this.inc.selector);
     }
 
-    function _getIncBySelector() internal pure returns (bytes4) {
-        return this.incBy.selector;
+    function _getIncBySelector() internal pure returns (bytes32) {
+        return bytes32(this.incBy.selector);
     }
 
     constructor(address _assuraVerifier) {
@@ -53,7 +53,7 @@ contract Counter {
 
     function inc(
         bytes calldata attestedData
-    ) public onlyComplianceUser(this.inc.selector, attestedData) {
+    ) public onlyComplianceUser(bytes32(this.inc.selector), attestedData) {
         x++;
         emit Increment(1);
     }
@@ -61,7 +61,7 @@ contract Counter {
     function incBy(
         uint by,
         bytes calldata attestedData
-    ) public onlyComplianceUser(this.incBy.selector, attestedData) {
+    ) public onlyComplianceUser(bytes32(this.incBy.selector), attestedData) {
         require(by > 0, "incBy: increment should be positive");
         x += by;
         emit Increment(by);

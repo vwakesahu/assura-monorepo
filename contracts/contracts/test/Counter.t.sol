@@ -64,16 +64,16 @@ contract CounterTest is Test {
         bytes4 incSelector = counter.inc.selector;
         bytes4 incBySelector = counter.incBy.selector;
         
-        VerifyingData memory vData1 = assuraVerifier.getVerifyingData(address(counter), bytes32(uint256(uint32(incSelector))));
+        VerifyingData memory vData1 = assuraVerifier.getVerifyingData(address(counter), bytes32(incSelector));
         assertEq(vData1.score, 100, "inc() should require score 100");
         
-        VerifyingData memory vData2 = assuraVerifier.getVerifyingData(address(counter), bytes32(uint256(uint32(incBySelector))));
+        VerifyingData memory vData2 = assuraVerifier.getVerifyingData(address(counter), bytes32(incBySelector));
         assertEq(vData2.score, 30, "incBy() should require score 30");
     }
 
     function test_IncWithValidComplianceData() public {
         bytes4 selector = counter.inc.selector;
-        bytes32 key = bytes32(uint256(uint32(selector)));
+        bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 100 (required for inc)
         ActualAttestedData memory attestedData = ActualAttestedData({
@@ -113,7 +113,7 @@ contract CounterTest is Test {
 
     function test_IncByWithValidComplianceData() public {
         bytes4 selector = counter.incBy.selector;
-        bytes32 key = bytes32(uint256(uint32(selector)));
+        bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 30 (required for incBy)
         ActualAttestedData memory attestedData = ActualAttestedData({
@@ -153,7 +153,7 @@ contract CounterTest is Test {
 
     function test_IncFailsWithInsufficientScore() public {
         bytes4 selector = counter.inc.selector;
-        bytes32 key = bytes32(uint256(uint32(selector)));
+        bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 50 (less than required 100)
         ActualAttestedData memory attestedData = ActualAttestedData({
@@ -191,7 +191,7 @@ contract CounterTest is Test {
 
     function test_IncFailsWithWrongSignature() public {
         bytes4 selector = counter.inc.selector;
-        bytes32 key = bytes32(uint256(uint32(selector)));
+        bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 100
         ActualAttestedData memory attestedData = ActualAttestedData({
@@ -229,7 +229,7 @@ contract CounterTest is Test {
 
     function test_IncFailsWithWrongKey() public {
         bytes4 selector = counter.incBy.selector; // Wrong selector for inc()
-        bytes32 key = bytes32(uint256(uint32(selector)));
+        bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 100
         ActualAttestedData memory attestedData = ActualAttestedData({
@@ -267,7 +267,7 @@ contract CounterTest is Test {
 
     function test_IncByZero() public {
         bytes4 selector = counter.incBy.selector;
-        bytes32 key = bytes32(uint256(uint32(selector)));
+        bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 30
         ActualAttestedData memory attestedData = ActualAttestedData({
@@ -305,7 +305,7 @@ contract CounterTest is Test {
 
     function test_MultipleIncrements() public {
         bytes4 selector = counter.inc.selector;
-        bytes32 key = bytes32(uint256(uint32(selector)));
+        bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 100
         ActualAttestedData memory attestedData = ActualAttestedData({
