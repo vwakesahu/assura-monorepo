@@ -93,9 +93,9 @@ export default function Projects() {
                     })
                 }
             </div>
-            <RoundedButton>
+            {/* <RoundedButton>
                 <p>View docs</p>
-            </RoundedButton>
+            </RoundedButton> */}
 
         </main>
     )

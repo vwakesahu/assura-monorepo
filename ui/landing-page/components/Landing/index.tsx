@@ -60,7 +60,6 @@ export default function Landing() {
             animate="enter"
             className="relative flex h-screen overflow-hidden"
         >
-            <div className="absolute inset-0 bg-gradient-to-br from-card via-background to-card"></div>
 
             {/* Centered content */}
             <div className="absolute top-[25%] left-1/2 -translate-x-1/2 max-w-[500px] text-foreground text-center">
