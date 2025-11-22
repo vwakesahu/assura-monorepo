@@ -8,10 +8,17 @@ contract AssuraVerifier {
         uint256 chainId;
     }
 
-    struct ComplianceUser {
-        address user;
+    struct ActualAttestedData{
+        uint256 score;
+        uint256 timeAtWhichAttested;
+        uint256 chainId;
+    }
+
+    struct ComplianceData {
+        address userAddress;
         bytes32 key;
-        bytes attestedData;
+        bytes signedAttestedDataWithSignature; // use ActualAttestedData struct to sign and decode onchain
+        ActualAttestedData actualAttestedData;
     }
 
     mapping(address appContractAddress => mapping(bytes32 key => VerifyingData))
