@@ -1,63 +1,52 @@
-'use client'
-import { ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { AbstractPainting } from "@/components/abstract-painting";
+'use client';
+import { useEffect, useState } from 'react'
+import { AnimatePresence } from 'motion/react';
+import Preloader from '../components/Preloader';
+import Landing from '../components/Landing';
+import Projects from '../components/Projects';
+import Description from '../components/Description';
+import SlidingImages from '../components/SlidingImages';
+import Footer from '../components/Footer';
 
-export default function AbstractPaintingHeroPage() {
+export default function Home() {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    (
+      async () => {
+        const LocomotiveScroll = (await import('locomotive-scroll')).default
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const locomotiveScroll = new LocomotiveScroll();
+
+        setTimeout(() => {
+          setIsLoading(false);
+          document.body.style.cursor = 'default'
+          window.scrollTo(0, 0);
+        }, 2000)
+      }
+    )()
+  }, [])
+
   return (
-    <main className="flex w-full items-center justify-center">
-      <div className="relative z-10 w-full">
-        <div
-          className={cn(
-            "relative overflow-hidden",
-            "",
-            "bg-white/5 dark:bg-black/5",
-            "shadow-[0_8px_32px_rgba(0,0,0,0.08)]",
-            "backdrop-blur-sm",
-            "h-[150vh]"
-          )}
-        >
-          {/* Abstract Painting Background */}
-          <div className="absolute inset-0 overflow-hidden">
-            <AbstractPainting />
-
-            {/* Overlay gradient for better text readability */}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-black/30" />
-          </div>
-          {/* Content container with backdrop blur for better readability */}
-          <div className="relative z-10 flex h-full flex-col justify-between p-8 md:p-16">
-            <div className="max-w-2xl space-y-6 md:space-y-8">
-              <h2 className="font-medium text-6xl text-white/90 tracking-tight sm:text-4xl md:text-[7rem]">
-                The Future
-              </h2>
-
-              <p className="ml-3 font-medium text-4xl text-white/50 tracking-tight sm:ml-7 sm:text-4xl md:text-6xl">
-                was yesterday.
-              </p>
-            </div>
-
-            <div className="space-y-8">
-              <div className="flex flex-col gap-4 sm:flex-row">
-                <div>
-                  <Button className="h-12 w-full rounded-full bg-white px-8 font-medium text-base text-slate-900 shadow-sm transition-all duration-300 hover:bg-white/90 hover:shadow-md">
-                    CTA
-                  </Button>
-                </div>
-
-                <div>
-                  <Button
-                    className="h-12 w-full rounded-full border-white/30 bg-transparent px-8 font-medium text-base text-white hover:bg-white/10 hover:text-white"
-                    variant="outline"
-                  >
-                    Learn More <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+    <main>
+      <AnimatePresence mode='wait'>
+        {isLoading && <Preloader />}
+      </AnimatePresence>
+      <div id="landing">
+        <Landing />
+      </div>
+      <div id="description">
+        <Description />
+      </div>
+      <div id="projects">
+        <Projects />
+      </div>
+      <div id="sliding-images">
+        <SlidingImages />
+      </div>
+      <div id="footer">
+        <Footer />
       </div>
     </main>
-  );
+  )
 }
