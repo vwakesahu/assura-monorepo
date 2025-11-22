@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {IAssuraVerifier, VerifyingData} from "./assura/IAssuraVerifier.sol";
+import {IAssuraVerifier} from "./assura/IAssuraVerifier.sol";
+import {AssuraTypes} from "./assura/types/AssuraTypes.sol";
 
 contract Counter {
     IAssuraVerifier public assuraVerifier;
@@ -9,12 +10,12 @@ contract Counter {
 
     event Increment(uint by);
 
-    function onlyUserWithScore100() public pure returns (VerifyingData memory) {
-        return VerifyingData({score: 100, expiry: 0, chainId: 0});
+    function onlyUserWithScore100() public pure returns (AssuraTypes.VerifyingData memory) {
+        return AssuraTypes.VerifyingData({score: 100, expiry: 0, chainId: 0});
     }
 
-    function onlyUserWithScore30() public pure returns (VerifyingData memory) {
-        return VerifyingData({score: 30, expiry: 0, chainId: 0});
+    function onlyUserWithScore30() public pure returns (AssuraTypes.VerifyingData memory) {
+        return AssuraTypes.VerifyingData({score: 30, expiry: 0, chainId: 0});
     }
 
     function _getIncSelector() internal pure returns (bytes32) {

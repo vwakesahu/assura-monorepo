@@ -3,22 +3,9 @@ pragma solidity ^0.8.28;
 
 import {Counter} from "../Counter.sol";
 import {AssuraVerifier} from "../assura/AssuraVerifier.sol";
-import {IAssuraVerifier, VerifyingData} from "../assura/IAssuraVerifier.sol";
+import {IAssuraVerifier} from "../assura/IAssuraVerifier.sol";
+import {AssuraTypes} from "../assura/types/AssuraTypes.sol";
 import {Test} from "forge-std/Test.sol";
-
-// Import structs from AssuraVerifier
-struct ActualAttestedData {
-    uint256 score;
-    uint256 timeAtWhichAttested;
-    uint256 chainId;
-}
-
-struct ComplianceData {
-    address userAddress;
-    bytes32 key;
-    bytes signedAttestedDataWithTEESignature;
-    ActualAttestedData actualAttestedData;
-}
 
 contract CounterTest is Test {
     Counter public counter;
@@ -51,7 +38,7 @@ contract CounterTest is Test {
 
     // Helper function to create EIP-191 signature
     function _createEIP191Signature(
-        ActualAttestedData memory attestedData,
+        AssuraTypes.AttestedData memory attestedData,
         uint256 signerPrivateKey
     ) internal pure returns (bytes memory) {
         bytes32 hash = keccak256(
@@ -66,7 +53,7 @@ contract CounterTest is Test {
 
     // Helper function to create EIP-712 signature
     function _createEIP712Signature(
-        ActualAttestedData memory attestedData,
+        AssuraTypes.AttestedData memory attestedData,
         uint256 signerPrivateKey
     ) internal view returns (bytes memory) {
         // Compute domain separator manually (matches EIP712("AssuraVerifier", "1"))
@@ -87,7 +74,7 @@ contract CounterTest is Test {
         
         // Create the struct hash
         bytes32 typeHash = keccak256(
-            "ActualAttestedData(uint256 score,uint256 timeAtWhichAttested,uint256 chainId)"
+            "AttestedData(uint256 score,uint256 timeAtWhichAttested,uint256 chainId)"
         );
         bytes32 structHash = keccak256(
             abi.encode(
@@ -122,10 +109,10 @@ contract CounterTest is Test {
         bytes4 incSelector = counter.inc.selector;
         bytes4 incBySelector = counter.incBy.selector;
         
-        VerifyingData memory vData1 = assuraVerifier.getVerifyingData(address(counter), bytes32(incSelector));
+        AssuraTypes.VerifyingData memory vData1 = assuraVerifier.getVerifyingData(address(counter), bytes32(incSelector));
         assertEq(vData1.score, 100, "inc() should require score 100");
         
-        VerifyingData memory vData2 = assuraVerifier.getVerifyingData(address(counter), bytes32(incBySelector));
+        AssuraTypes.VerifyingData memory vData2 = assuraVerifier.getVerifyingData(address(counter), bytes32(incBySelector));
         assertEq(vData2.score, 30, "incBy() should require score 30");
     }
 
@@ -134,7 +121,7 @@ contract CounterTest is Test {
         bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 100 (required for inc)
-        ActualAttestedData memory attestedData = ActualAttestedData({
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
             score: 100,
             timeAtWhichAttested: block.timestamp,
             chainId: block.chainid
@@ -144,7 +131,7 @@ contract CounterTest is Test {
         bytes memory signature = _createEIP191Signature(attestedData, teePrivateKey);
         
         // Create ComplianceData
-        ComplianceData memory complianceData = ComplianceData({
+        AssuraTypes.ComplianceData memory complianceData = AssuraTypes.ComplianceData({
             userAddress: user,
             key: key,
             signedAttestedDataWithTEESignature: signature,
@@ -167,7 +154,7 @@ contract CounterTest is Test {
         bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 30 (required for incBy)
-        ActualAttestedData memory attestedData = ActualAttestedData({
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
             score: 30,
             timeAtWhichAttested: block.timestamp,
             chainId: block.chainid
@@ -177,7 +164,7 @@ contract CounterTest is Test {
         bytes memory signature = _createEIP191Signature(attestedData, teePrivateKey);
         
         // Create ComplianceData
-        ComplianceData memory complianceData = ComplianceData({
+        AssuraTypes.ComplianceData memory complianceData = AssuraTypes.ComplianceData({
             userAddress: user,
             key: key,
             signedAttestedDataWithTEESignature: signature,
@@ -200,7 +187,7 @@ contract CounterTest is Test {
         bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 50 (less than required 100)
-        ActualAttestedData memory attestedData = ActualAttestedData({
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
             score: 50,
             timeAtWhichAttested: block.timestamp,
             chainId: block.chainid
@@ -210,7 +197,7 @@ contract CounterTest is Test {
         bytes memory signature = _createEIP191Signature(attestedData, teePrivateKey);
         
         // Create ComplianceData
-        ComplianceData memory complianceData = ComplianceData({
+        AssuraTypes.ComplianceData memory complianceData = AssuraTypes.ComplianceData({
             userAddress: user,
             key: key,
             signedAttestedDataWithTEESignature: signature,
@@ -231,7 +218,7 @@ contract CounterTest is Test {
         bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 100
-        ActualAttestedData memory attestedData = ActualAttestedData({
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
             score: 100,
             timeAtWhichAttested: block.timestamp,
             chainId: block.chainid
@@ -241,7 +228,7 @@ contract CounterTest is Test {
         bytes memory signature = _createEIP191Signature(attestedData, userPrivateKey);
         
         // Create ComplianceData
-        ComplianceData memory complianceData = ComplianceData({
+        AssuraTypes.ComplianceData memory complianceData = AssuraTypes.ComplianceData({
             userAddress: user,
             key: key,
             signedAttestedDataWithTEESignature: signature,
@@ -253,7 +240,7 @@ contract CounterTest is Test {
         
         // Call inc() should fail due to wrong signature
         vm.prank(user);
-        vm.expectRevert("Signature not from TEE");
+        vm.expectRevert("AssuraVerifier: Signature not from TEE");
         counter.inc(encodedComplianceData);
     }
 
@@ -262,7 +249,7 @@ contract CounterTest is Test {
         bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 100
-        ActualAttestedData memory attestedData = ActualAttestedData({
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
             score: 100,
             timeAtWhichAttested: block.timestamp,
             chainId: block.chainid
@@ -272,7 +259,7 @@ contract CounterTest is Test {
         bytes memory signature = _createEIP191Signature(attestedData, teePrivateKey);
         
         // Create ComplianceData with wrong key
-        ComplianceData memory complianceData = ComplianceData({
+        AssuraTypes.ComplianceData memory complianceData = AssuraTypes.ComplianceData({
             userAddress: user,
             key: key,
             signedAttestedDataWithTEESignature: signature,
@@ -284,7 +271,7 @@ contract CounterTest is Test {
         
         // Call inc() should fail due to key mismatch
         vm.prank(user);
-        vm.expectRevert("Key mismatch");
+        vm.expectRevert("AssuraVerifier: Key mismatch");
         counter.inc(encodedComplianceData);
     }
 
@@ -293,7 +280,7 @@ contract CounterTest is Test {
         bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 30
-        ActualAttestedData memory attestedData = ActualAttestedData({
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
             score: 30,
             timeAtWhichAttested: block.timestamp,
             chainId: block.chainid
@@ -303,7 +290,7 @@ contract CounterTest is Test {
         bytes memory signature = _createEIP191Signature(attestedData, teePrivateKey);
         
         // Create ComplianceData
-        ComplianceData memory complianceData = ComplianceData({
+        AssuraTypes.ComplianceData memory complianceData = AssuraTypes.ComplianceData({
             userAddress: user,
             key: key,
             signedAttestedDataWithTEESignature: signature,
@@ -324,7 +311,7 @@ contract CounterTest is Test {
         bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 100
-        ActualAttestedData memory attestedData = ActualAttestedData({
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
             score: 100,
             timeAtWhichAttested: block.timestamp,
             chainId: block.chainid
@@ -334,7 +321,7 @@ contract CounterTest is Test {
         bytes memory signature = _createEIP191Signature(attestedData, teePrivateKey);
         
         // Create ComplianceData
-        ComplianceData memory complianceData = ComplianceData({
+        AssuraTypes.ComplianceData memory complianceData = AssuraTypes.ComplianceData({
             userAddress: user,
             key: key,
             signedAttestedDataWithTEESignature: signature,
@@ -363,7 +350,7 @@ contract CounterTest is Test {
         bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 100 (required for inc)
-        ActualAttestedData memory attestedData = ActualAttestedData({
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
             score: 100,
             timeAtWhichAttested: block.timestamp,
             chainId: block.chainid
@@ -373,7 +360,7 @@ contract CounterTest is Test {
         bytes memory signature = _createEIP712Signature(attestedData, teePrivateKey);
         
         // Create ComplianceData
-        ComplianceData memory complianceData = ComplianceData({
+        AssuraTypes.ComplianceData memory complianceData = AssuraTypes.ComplianceData({
             userAddress: user,
             key: key,
             signedAttestedDataWithTEESignature: signature,
@@ -396,7 +383,7 @@ contract CounterTest is Test {
         bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 30 (required for incBy)
-        ActualAttestedData memory attestedData = ActualAttestedData({
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
             score: 30,
             timeAtWhichAttested: block.timestamp,
             chainId: block.chainid
@@ -406,7 +393,7 @@ contract CounterTest is Test {
         bytes memory signature = _createEIP712Signature(attestedData, teePrivateKey);
         
         // Create ComplianceData
-        ComplianceData memory complianceData = ComplianceData({
+        AssuraTypes.ComplianceData memory complianceData = AssuraTypes.ComplianceData({
             userAddress: user,
             key: key,
             signedAttestedDataWithTEESignature: signature,
@@ -429,7 +416,7 @@ contract CounterTest is Test {
         bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 100
-        ActualAttestedData memory attestedData = ActualAttestedData({
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
             score: 100,
             timeAtWhichAttested: block.timestamp,
             chainId: block.chainid
@@ -439,7 +426,7 @@ contract CounterTest is Test {
         bytes memory signature = _createEIP712Signature(attestedData, userPrivateKey);
         
         // Create ComplianceData
-        ComplianceData memory complianceData = ComplianceData({
+        AssuraTypes.ComplianceData memory complianceData = AssuraTypes.ComplianceData({
             userAddress: user,
             key: key,
             signedAttestedDataWithTEESignature: signature,
@@ -451,7 +438,7 @@ contract CounterTest is Test {
         
         // Call inc() should fail due to wrong signature
         vm.prank(user);
-        vm.expectRevert("Signature not from TEE");
+        vm.expectRevert("AssuraVerifier: Signature not from TEE");
         counter.inc(encodedComplianceData);
     }
 
@@ -460,7 +447,7 @@ contract CounterTest is Test {
         bytes32 key = bytes32(selector);
         
         // Create ActualAttestedData with score 100
-        ActualAttestedData memory attestedData = ActualAttestedData({
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
             score: 100,
             timeAtWhichAttested: block.timestamp,
             chainId: block.chainid
@@ -468,7 +455,7 @@ contract CounterTest is Test {
         
         // Test EIP-191 signature
         bytes memory eip191Signature = _createEIP191Signature(attestedData, teePrivateKey);
-        ComplianceData memory complianceData1 = ComplianceData({
+        AssuraTypes.ComplianceData memory complianceData1 = AssuraTypes.ComplianceData({
             userAddress: user,
             key: key,
             signedAttestedDataWithTEESignature: eip191Signature,
@@ -481,7 +468,7 @@ contract CounterTest is Test {
         
         // Test EIP-712 signature
         bytes memory eip712Signature = _createEIP712Signature(attestedData, teePrivateKey);
-        ComplianceData memory complianceData2 = ComplianceData({
+        AssuraTypes.ComplianceData memory complianceData2 = AssuraTypes.ComplianceData({
             userAddress: user,
             key: key,
             signedAttestedDataWithTEESignature: eip712Signature,
