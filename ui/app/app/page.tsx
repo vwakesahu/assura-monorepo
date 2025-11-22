@@ -1,9 +1,7 @@
-
+import VaultDeposit from '@/components/VaultDeposit'
 
 const Page = () => {
-  return (
-    <div>Page</div>
-  )
+  return <VaultDeposit />
 }
 
 export default Page
