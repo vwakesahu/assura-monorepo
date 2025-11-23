@@ -453,8 +453,8 @@ describe("Comprehensive Vault E2E Tests on Base Sepolia", async function () {
       mintSelector,
     ]);
 
-    assert.equal(depositVerifyingData.score, 5n, "depositWithScore100() should require score 5");
-    assert.equal(mintVerifyingData.score, 10n, "mintWithScore30() should require score 10");
+    assert.equal(depositVerifyingData.score, 20n, "depositWithScore100() should require score 20");
+    assert.equal(mintVerifyingData.score, 40n, "mintWithScore30() should require score 40");
 
     console.log(`✓ depositWithScore100() requires score: ${depositVerifyingData.score}`);
     console.log(`✓ mintWithScore30() requires score: ${mintVerifyingData.score}`);
