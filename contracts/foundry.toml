@@ -16,3 +16,14 @@ solc_version = "0.8.28"
 evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
+
+# Base Sepolia fork configuration
+[rpc_endpoints]
+base_sepolia = "${BASE_SEPOLIA_RPC_URL:-https://sepolia.base.org}"
+
+# Base Sepolia network profile for actual testing (not fork)
+[profile.base_sepolia]
+rpc_url = "${BASE_SEPOLIA_RPC_URL:-https://sepolia.base.org}"
+chain_id = 84532
+# Private key can be set via environment variable: BASE_SEPOLIA_PRIVATE_KEY
+# Or use --private-key flag when running tests

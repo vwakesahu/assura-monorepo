@@ -2,6 +2,12 @@
   "name": "contracts",
   "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "base-sepolia:test": "tsx scripts/base-sepolia.ts test",
+    "base-sepolia:deploy": "tsx scripts/base-sepolia.ts deploy",
+    "base-sepolia:info": "tsx scripts/base-sepolia.ts info",
+    "test:e2e": "npx hardhat test ./test/e2e-counter-comprehensive.ts --network baseSepolia"
+  },
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0",
     "@openzeppelin/contracts-upgradeable": "^5.4.0",

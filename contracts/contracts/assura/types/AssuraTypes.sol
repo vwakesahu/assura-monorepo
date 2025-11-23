@@ -43,5 +43,17 @@ library AssuraTypes {
         bytes signedAttestedDataWithTEESignature;
         AttestedData actualAttestedData;
     }
+
+    /**
+     * @notice Bypass data structure for time-based access control
+     * @param expiry Timestamp when the bypass expires and user can access
+     * @param nonce Nonce for replay protection
+     * @param allowed Always set to true when creation
+     */
+    struct BypassData {
+        uint256 expiry;
+        uint256 nonce;
+        bool allowed;
+    }
 }
 

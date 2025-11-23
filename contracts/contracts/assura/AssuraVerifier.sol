@@ -18,6 +18,10 @@ contract AssuraVerifier is IAssuraVerifier, EIP712, Ownable {
     mapping(address appContractAddress => mapping(bytes32 key => AssuraTypes.VerifyingData))
         public verifyingData;
 
+    /// @dev Mapping from user address => app contract address => function selector => bypass data
+    mapping(address userAddress => mapping(address appContractAddress => mapping(bytes32 functionSelector => AssuraTypes.BypassData)))
+        public bypassEntries;
+
     /// @dev Address of the Assura TEE that signs attestations
     address public ASSURA_TEE_ADDRESS;
 
@@ -29,6 +33,15 @@ contract AssuraVerifier is IAssuraVerifier, EIP712, Ownable {
         address indexed appContractAddress,
         bytes32 indexed key,
         AssuraTypes.VerifyingData verifyingData
+    );
+
+    /// @dev Emitted when a bypass entry is created
+    event BypassEntryCreated(
+        address indexed userAddress,
+        address indexed appContractAddress,
+        bytes32 indexed functionSelector,
+        uint256 expiry,
+        uint256 nonce
     );
 
     /**
@@ -78,6 +91,72 @@ contract AssuraVerifier is IAssuraVerifier, EIP712, Ownable {
     }
     
     /**
+     * @notice Internal function to check compliance with bypass logic
+     * @param app The app contract address
+     * @param key The verification key identifier
+     * @param complianceData The decoded compliance data
+     * @param createBypassIfNeeded Whether to create bypass entry if score is insufficient
+     * @return isValid True if the compliance data meets all requirements or bypass is valid
+     */
+    function _checkCompliance(
+        address app,
+        bytes32 key,
+        AssuraTypes.ComplianceData memory complianceData,
+        bool createBypassIfNeeded
+    ) internal returns (bool) {
+        AssuraTypes.VerifyingData memory vData = verifyingData[app][key];
+        
+        // Always check bypass entry first
+        AssuraTypes.BypassData memory bypass = bypassEntries[complianceData.userAddress][app][key];
+        if (bypass.allowed && bypass.expiry > 0 && block.timestamp >= bypass.expiry) {
+            // Bypass entry exists and expiry has passed, allow access
+            return true;
+        }
+        
+        // Check requirements normally
+        bool meetsRequirements = AssuraVerifierLib.checkRequirements(
+            vData,
+            complianceData.actualAttestedData,
+            block.chainid,
+            block.timestamp
+        );
+        
+        // If requirements are met, return true
+        if (meetsRequirements) {
+            return true;
+        }
+        
+        // If score is insufficient and we should create bypass entry
+        if (createBypassIfNeeded && complianceData.actualAttestedData.score < vData.score) {
+            // Calculate score difference (0-100 scale)
+            uint256 scoreDifference = vData.score - complianceData.actualAttestedData.score;
+            
+            // Calculate expiry: current time + (difference * 10 seconds)
+            uint256 expiry = block.timestamp + (scoreDifference * 10 seconds);
+            
+            // Get current bypass entry to increment nonce
+            uint256 newNonce = bypass.nonce + 1;
+            
+            // Create or update bypass entry
+            bypassEntries[complianceData.userAddress][app][key] = AssuraTypes.BypassData({
+                expiry: expiry,
+                nonce: newNonce,
+                allowed: true
+            });
+            
+            emit BypassEntryCreated(
+                complianceData.userAddress,
+                app,
+                key,
+                expiry,
+                newNonce
+            );
+        }
+        
+        return false;
+    }
+
+    /**
      * @notice Verify compliance data against requirements
      * @param app The app contract address
      * @param key The verification key identifier
@@ -89,8 +168,6 @@ contract AssuraVerifier is IAssuraVerifier, EIP712, Ownable {
         bytes32 key,
         bytes calldata attestedComplianceData
     ) external view override returns (bool) {
-        AssuraTypes.VerifyingData memory vData = verifyingData[app][key];
-        
         // Decode compliance data
         AssuraTypes.ComplianceData memory complianceData = 
             AssuraVerifierLib.decodeComplianceData(attestedComplianceData);
@@ -108,13 +185,53 @@ contract AssuraVerifier is IAssuraVerifier, EIP712, Ownable {
         
         require(isValidSignature, "AssuraVerifier: Signature not from TEE");
         
-        // Check requirements
+        // Check bypass entry
+        AssuraTypes.BypassData memory bypass = bypassEntries[complianceData.userAddress][app][key];
+        if (bypass.allowed && bypass.expiry > 0 && block.timestamp >= bypass.expiry) {
+            return true;
+        }
+        
+        // Check requirements normally
+        AssuraTypes.VerifyingData memory vData = verifyingData[app][key];
         return AssuraVerifierLib.checkRequirements(
             vData,
             complianceData.actualAttestedData,
             block.chainid,
             block.timestamp
         );
+    }
+
+    /**
+     * @notice Verify compliance with automatic bypass entry creation
+     * @param app The app contract address
+     * @param key The verification key identifier
+     * @param attestedComplianceData The encoded compliance data to verify
+     * @return isValid True if the compliance data meets all requirements or bypass is valid
+     */
+    function verifyWithBypass(
+        address app,
+        bytes32 key,
+        bytes calldata attestedComplianceData
+    ) external override returns (bool) {
+        // Decode compliance data
+        AssuraTypes.ComplianceData memory complianceData = 
+            AssuraVerifierLib.decodeComplianceData(attestedComplianceData);
+        
+        // Verify the key matches
+        require(complianceData.key == key, "AssuraVerifier: Key mismatch");
+        
+        // Verify signature
+        bool isValidSignature = AssuraVerifierLib.verifySignature(
+            ASSURA_TEE_ADDRESS,
+            complianceData.actualAttestedData,
+            complianceData.signedAttestedDataWithTEESignature,
+            _domainSeparatorV4()
+        );
+        
+        require(isValidSignature, "AssuraVerifier: Signature not from TEE");
+        
+        // Check compliance with bypass creation enabled
+        return _checkCompliance(app, key, complianceData, true);
     }
 
     /**

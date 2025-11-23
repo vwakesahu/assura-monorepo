@@ -6,8 +6,9 @@ import {AssuraVerifier} from "../assura/AssuraVerifier.sol";
 import {IAssuraVerifier} from "../assura/IAssuraVerifier.sol";
 import {AssuraTypes} from "../assura/types/AssuraTypes.sol";
 import {Test} from "forge-std/Test.sol";
+import {TestHelper, TestConfig} from "./TestConfig.sol";
 
-contract CounterTest is Test {
+contract CounterTest is TestHelper {
     Counter public counter;
     AssuraVerifier public assuraVerifier;
     
@@ -20,6 +21,9 @@ contract CounterTest is Test {
     uint256 public userPrivateKey;
 
     function setUp() public {
+        // Initialize test helper to detect network
+        _initializeTestHelper();
+        
         // Create wallets for owner, TEE, and user
         ownerPrivateKey = 0x1;
         teePrivateKey = 0x2;
@@ -29,11 +33,29 @@ contract CounterTest is Test {
         teeAddress = vm.addr(teePrivateKey);
         user = vm.addr(userPrivateKey);
         
+        // When forking, ensure TEE address is treated as an EOA (not a contract)
+        // This prevents SignatureChecker from trying to use EIP-1271 on a contract address
+        if (TestConfig.isFork()) {
+            // Clear any code at the TEE address to ensure it's treated as an EOA
+            vm.etch(teeAddress, "");
+            // Give it some ETH to ensure it's recognized as an EOA
+            vm.deal(teeAddress, 1 ether);
+        }
+        
         // Deploy AssuraVerifier with owner and TEE address
         assuraVerifier = new AssuraVerifier(owner, teeAddress);
         
         // Deploy Counter with AssuraVerifier address
         counter = new Counter(address(assuraVerifier));
+        
+        // Store deployed addresses for current network (useful for forking scenarios)
+        string[] memory names = new string[](2);
+        address[] memory addrs = new address[](2);
+        names[0] = "AssuraVerifier";
+        names[1] = "Counter";
+        addrs[0] = address(assuraVerifier);
+        addrs[1] = address(counter);
+        setupCurrentNetworkAddresses(names, addrs);
     }
 
     // Helper function to create EIP-191 signature
@@ -180,7 +202,7 @@ contract CounterTest is Test {
         assertEq(counter.x(), 5, "Counter should be incremented to 5");
     }
 
-    function test_IncFailsWithInsufficientScore() public {
+    function test_IncFailsWithInsufficientScore_CreatesBypassEntry() public {
         bytes32 key = counter.getOnlyUserWithScore100Selector();
         
         // Create ActualAttestedData with score 50 (less than required 100)
@@ -204,10 +226,213 @@ contract CounterTest is Test {
         // Encode ComplianceData
         bytes memory encodedComplianceData = abi.encode(complianceData);
         
-        // Call inc() should fail due to insufficient score
+        uint256 initialTimestamp = block.timestamp;
+        
+        // Call verifyWithBypass directly to create bypass entry (this persists)
+        vm.prank(user);
+        bool isValid = assuraVerifier.verifyWithBypass(address(counter), key, encodedComplianceData);
+        assertFalse(isValid, "Verification should fail due to insufficient score");
+        
+        // Verify bypass entry was created
+        // Public nested mapping getter returns struct fields as separate values
+        (uint256 expiry, uint256 nonce, bool allowed) = assuraVerifier.bypassEntries(user, address(counter), key);
+        assertTrue(allowed, "Bypass entry should be created with allowed=true");
+        assertEq(nonce, 1, "Bypass entry should have nonce=1");
+        
+        // Calculate expected expiry: current time + (difference * 10 seconds)
+        // Difference = 100 - 50 = 50
+        // Expiry = initialTimestamp + (50 * 10 seconds) = initialTimestamp + 500 seconds
+        uint256 expectedExpiry = initialTimestamp + (50 * 10);
+        assertEq(expiry, expectedExpiry, "Bypass expiry should be calculated correctly");
+        
+        // Now calling inc() should still fail (bypass not expired yet)
         vm.prank(user);
         vm.expectRevert("AssuraVerifierLib: Compliance verification failed");
         counter.inc(encodedComplianceData);
+    }
+
+    function test_BypassEntryAllowsAccessAfterExpiry() public {
+        bytes32 key = counter.getOnlyUserWithScore100Selector();
+        
+        // Create ActualAttestedData with score 50 (less than required 100)
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
+            score: 50,
+            timeAtWhichAttested: block.timestamp,
+            chainId: block.chainid
+        });
+        
+        // Sign the data with TEE private key (EIP-191 format)
+        bytes memory signature = _createEIP191Signature(attestedData, teePrivateKey);
+        
+        // Create ComplianceData
+        AssuraTypes.ComplianceData memory complianceData = AssuraTypes.ComplianceData({
+            userAddress: user,
+            key: key,
+            signedAttestedDataWithTEESignature: signature,
+            actualAttestedData: attestedData
+        });
+        
+        // Encode ComplianceData
+        bytes memory encodedComplianceData = abi.encode(complianceData);
+        
+        uint256 initialTimestamp = block.timestamp;
+        
+        // Create bypass entry by calling verifyWithBypass directly
+        vm.prank(user);
+        bool isValid1 = assuraVerifier.verifyWithBypass(address(counter), key, encodedComplianceData);
+        assertFalse(isValid1, "Verification should fail initially");
+        
+        // Verify bypass entry was created
+        (uint256 expiry, , ) = assuraVerifier.bypassEntries(user, address(counter), key);
+        uint256 expectedExpiry = initialTimestamp + (50 * 10); // 500 seconds
+        assertEq(expiry, expectedExpiry, "Bypass expiry should be set correctly");
+        
+        // Fast forward time to just before expiry (should still fail)
+        vm.warp(expectedExpiry - 1);
+        vm.prank(user);
+        vm.expectRevert("AssuraVerifierLib: Compliance verification failed");
+        counter.inc(encodedComplianceData);
+        
+        // Fast forward time to after expiry (should succeed)
+        vm.warp(expectedExpiry);
+        vm.prank(user);
+        counter.inc(encodedComplianceData);
+        
+        // Verify counter was incremented
+        assertEq(counter.x(), 1, "Counter should be incremented after bypass expiry");
+    }
+
+    function test_BypassEntryNonceIncrements() public {
+        bytes32 key = counter.getOnlyUserWithScore100Selector();
+        
+        // Create ActualAttestedData with score 50
+        AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
+            score: 50,
+            timeAtWhichAttested: block.timestamp,
+            chainId: block.chainid
+        });
+        
+        bytes memory signature = _createEIP191Signature(attestedData, teePrivateKey);
+        AssuraTypes.ComplianceData memory complianceData = AssuraTypes.ComplianceData({
+            userAddress: user,
+            key: key,
+            signedAttestedDataWithTEESignature: signature,
+            actualAttestedData: attestedData
+        });
+        bytes memory encodedComplianceData = abi.encode(complianceData);
+        
+        // First attempt: creates bypass entry with nonce 1
+        vm.prank(user);
+        assertFalse(assuraVerifier.verifyWithBypass(address(counter), key, encodedComplianceData), "Verification should fail");
+        
+        (, uint256 nonce1, ) = assuraVerifier.bypassEntries(user, address(counter), key);
+        assertEq(nonce1, 1, "First bypass entry should have nonce=1");
+        
+        // Second attempt: updates bypass entry with nonce 2
+        vm.prank(user);
+        assertFalse(assuraVerifier.verifyWithBypass(address(counter), key, encodedComplianceData), "Verification should still fail");
+        
+        (, uint256 nonce2, ) = assuraVerifier.bypassEntries(user, address(counter), key);
+        assertEq(nonce2, 2, "Second bypass entry should have nonce=2");
+    }
+
+    function test_BypassEntryExpiryCalculation() public {
+        bytes32 key = counter.getOnlyUserWithScore100Selector();
+        
+        // Test with score 80 (difference = 20, expiry = 200 seconds)
+        uint256 timestamp1 = block.timestamp;
+        AssuraTypes.AttestedData memory attestedData1 = AssuraTypes.AttestedData({
+            score: 80,
+            timeAtWhichAttested: timestamp1,
+            chainId: block.chainid
+        });
+        
+        vm.prank(user);
+        assertFalse(assuraVerifier.verifyWithBypass(address(counter), key, abi.encode(AssuraTypes.ComplianceData({
+            userAddress: user,
+            key: key,
+            signedAttestedDataWithTEESignature: _createEIP191Signature(attestedData1, teePrivateKey),
+            actualAttestedData: attestedData1
+        }))), "Verification should fail");
+        
+        assertEq(_getBypassExpiry(user, key), timestamp1 + ((100 - 80) * 10), "Expiry should be 200 seconds for score difference of 20");
+        
+        // Test with score 30 (difference = 70, expiry = 700 seconds)
+        address user2 = vm.addr(0x4);
+        uint256 timestamp2 = block.timestamp;
+        AssuraTypes.AttestedData memory attestedData2 = AssuraTypes.AttestedData({
+            score: 30,
+            timeAtWhichAttested: timestamp2,
+            chainId: block.chainid
+        });
+        
+        vm.prank(user2);
+        assertFalse(assuraVerifier.verifyWithBypass(address(counter), key, abi.encode(AssuraTypes.ComplianceData({
+            userAddress: user2,
+            key: key,
+            signedAttestedDataWithTEESignature: _createEIP191Signature(attestedData2, teePrivateKey),
+            actualAttestedData: attestedData2
+        }))), "Verification should fail");
+        
+        assertEq(_getBypassExpiry(user2, key), timestamp2 + ((100 - 30) * 10), "Expiry should be 700 seconds for score difference of 70");
+    }
+
+    function test_BypassEntryIsPerUserContractAndFunction() public {
+        bytes32 key1 = counter.getOnlyUserWithScore100Selector();
+        bytes32 key2 = counter.getOnlyUserWithScore30Selector();
+        address user2 = vm.addr(0x4);
+        uint256 timestamp = block.timestamp;
+        
+        // User 1, function 1 (score 50, needs 100)
+        AssuraTypes.AttestedData memory attestedData1 = AssuraTypes.AttestedData({
+            score: 50,
+            timeAtWhichAttested: timestamp,
+            chainId: block.chainid
+        });
+        bytes memory signature1 = _createEIP191Signature(attestedData1, teePrivateKey);
+        
+        vm.prank(user);
+        assertFalse(assuraVerifier.verifyWithBypass(address(counter), key1, abi.encode(AssuraTypes.ComplianceData({
+            userAddress: user,
+            key: key1,
+            signedAttestedDataWithTEESignature: signature1,
+            actualAttestedData: attestedData1
+        }))), "Verification should fail");
+        
+        // User 2, function 1 (score 50, needs 100)
+        vm.prank(user2);
+        assertFalse(assuraVerifier.verifyWithBypass(address(counter), key1, abi.encode(AssuraTypes.ComplianceData({
+            userAddress: user2,
+            key: key1,
+            signedAttestedDataWithTEESignature: signature1,
+            actualAttestedData: attestedData1
+        }))), "Verification should fail");
+        
+        // User 1, function 2 (score 20, needs 30)
+        AssuraTypes.AttestedData memory attestedData2 = AssuraTypes.AttestedData({
+            score: 20,
+            timeAtWhichAttested: timestamp,
+            chainId: block.chainid
+        });
+        bytes memory signature2 = _createEIP191Signature(attestedData2, teePrivateKey);
+        
+        vm.prank(user);
+        assertFalse(assuraVerifier.verifyWithBypass(address(counter), key2, abi.encode(AssuraTypes.ComplianceData({
+            userAddress: user,
+            key: key2,
+            signedAttestedDataWithTEESignature: signature2,
+            actualAttestedData: attestedData2
+        }))), "Verification should fail");
+        
+        // Verify all bypass entries are separate - check one at a time to avoid stack too deep
+        assertEq(_getBypassExpiry(user, key1), timestamp + (50 * 10), "Bypass 1 expiry should be 500 seconds");
+        assertEq(_getBypassExpiry(user2, key1), timestamp + (50 * 10), "Bypass 2 expiry should be 500 seconds");
+        assertEq(_getBypassExpiry(user, key2), timestamp + (10 * 10), "Bypass 3 expiry should be 100 seconds");
+    }
+    
+    function _getBypassExpiry(address userAddr, bytes32 key) internal view returns (uint256) {
+        (uint256 expiry, , ) = assuraVerifier.bypassEntries(userAddr, address(counter), key);
+        return expiry;
     }
 
     function test_IncFailsWithWrongSignature() public {

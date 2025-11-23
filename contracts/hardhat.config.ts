@@ -51,10 +51,12 @@ export default defineConfig({
     baseSepolia: {
       type: "http",
       chainType: "generic",
-      url: process.env.BASE_SEPOLIA_RPC_URL || configVariable("BASE_SEPOLIA_RPC_URL"),
-      accounts: process.env.BASE_SEPOLIA_PRIVATE_KEY 
-        ? [process.env.BASE_SEPOLIA_PRIVATE_KEY] 
-        : [configVariable("BASE_SEPOLIA_PRIVATE_KEY")],
+      url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
+      accounts: process.env.BASE_SEPOLIA_PRIVATE_KEY
+        ? [process.env.BASE_SEPOLIA_PRIVATE_KEY]
+        : process.env.PRIVATE_KEY
+          ? [process.env.PRIVATE_KEY]
+          : [],
     },
   },
 });

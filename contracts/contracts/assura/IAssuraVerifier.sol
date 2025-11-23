@@ -43,4 +43,17 @@ interface IAssuraVerifier {
         bytes32 key,
         bytes calldata attestedComplianceData
     ) external view returns (bool);
+
+    /**
+     * @notice Verify compliance with automatic bypass entry creation
+     * @param app The app contract address
+     * @param key The verification key identifier
+     * @param attestedComplianceData The encoded compliance data to verify
+     * @return isValid True if the compliance data meets all requirements or bypass is valid
+     */
+    function verifyWithBypass(
+        address app,
+        bytes32 key,
+        bytes calldata attestedComplianceData
+    ) external returns (bool);
 }

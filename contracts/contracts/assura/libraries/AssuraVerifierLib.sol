@@ -111,6 +111,7 @@ library AssuraVerifierLib {
     /**
      * @notice Verify compliance and revert if verification fails
      * @dev Use this function in modifiers to check compliance
+     * Automatically handles bypass entry creation for insufficient scores
      * @param verifier The AssuraVerifier contract instance
      * @param app The app contract address
      * @param key The verification key identifier
@@ -128,8 +129,8 @@ library AssuraVerifierLib {
         address app,
         bytes32 key,
         bytes calldata attestedComplianceData
-    ) internal view {
-        bool isValid = verifier.verify(app, key, attestedComplianceData);
+    ) internal {
+        bool isValid = verifier.verifyWithBypass(app, key, attestedComplianceData);
         require(isValid, "AssuraVerifierLib: Compliance verification failed");
     }
 }
