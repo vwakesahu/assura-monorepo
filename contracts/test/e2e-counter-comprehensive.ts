@@ -346,8 +346,8 @@ describe("Comprehensive Counter E2E Tests on Base Sepolia", async function () {
       incBySelector,
     ]);
 
-    assert.equal(incVerifyingData.score, 100n, "inc() should require score 100");
-    assert.equal(incByVerifyingData.score, 30n, "incBy() should require score 30");
+    assert.equal(incVerifyingData.score, 5n, "inc() should require score 5");
+    assert.equal(incByVerifyingData.score, 10n, "incBy() should require score 10");
 
     console.log(`✓ inc() requires score: ${incVerifyingData.score}`);
     console.log(`✓ incBy() requires score: ${incByVerifyingData.score}`);

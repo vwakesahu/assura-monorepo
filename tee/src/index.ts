@@ -313,6 +313,13 @@ app.post('/attest', async (req: Request, res: Response) => {
       chainId: BigInt(chainId),
     };
 
+    console.log(`\n📝 ========== CONTRACT DATA INPUT ==========`);
+    console.log(`   Creating attested data structure for contract:`);
+    console.log(`   - score: ${attestedData.score} (${score})`);
+    console.log(`   - timeAtWhichAttested: ${attestedData.timeAtWhichAttested} (${new Date(timeAtWhichAttested * 1000).toISOString()})`);
+    console.log(`   - chainId: ${attestedData.chainId} (${chainId})`);
+    console.log(`   ==========================================`);
+
     // Encode the data for EIP-191 signature
     const { encodeAbiParameters, keccak256 } = await import('viem');
     const encodedData = encodeAbiParameters(
@@ -326,11 +333,19 @@ app.post('/attest', async (req: Request, res: Response) => {
 
     const dataHash = keccak256(encodedData);
 
+    console.log(`\n🔐 ========== SIGNATURE GENERATION ==========`);
+    console.log(`   Encoded data (ABI): ${encodedData}`);
+    console.log(`   Data hash: ${dataHash}`);
+    console.log(`   Signing with TEE account: ${teeAccount}`);
+
     // Sign with EIP-191 (personal_sign)
     const signature = await teeWallet.signMessage({
       account: teeWallet.account!,
       message: { raw: dataHash },
     });
+
+    console.log(`   ✅ Signature generated: ${signature.slice(0, 20)}...${signature.slice(-10)}`);
+    console.log(`   ==========================================`);
 
     // Handle registration if username provided
     let registrationData = null;
@@ -430,6 +445,28 @@ app.post('/attest', async (req: Request, res: Response) => {
     if (existingProfile && !registrationData) {
       response.profile = existingProfile;
     }
+
+    console.log(`\n📤 ========== API RESPONSE ==========`);
+    console.log(`   Sending response to client:`);
+    console.log(`   - attestedData.score: ${response.attestedData.score}`);
+    console.log(`   - attestedData.timeAtWhichAttested: ${response.attestedData.timeAtWhichAttested}`);
+    console.log(`   - attestedData.chainId: ${response.attestedData.chainId}`);
+    console.log(`   - signature: ${response.signature.slice(0, 20)}...${response.signature.slice(-10)}`);
+    console.log(`   - teeAddress: ${response.teeAddress}`);
+    console.log(`   - userAddress: ${response.userAddress}`);
+    if (registrationData) {
+      console.log(`   - registration: SUCCESS (${registrationData.username})`);
+      console.log(`     - ensFullName: ${registrationData.ensFullName}`);
+      console.log(`     - eKYC: ${registrationData.eKYC}`);
+      console.log(`     - aKYC: ${registrationData.aKYC}`);
+    }
+    if (existingProfile && !registrationData) {
+      console.log(`   - profile: EXISTING USER`);
+      console.log(`     - username: ${existingProfile.username || 'N/A'}`);
+      console.log(`     - eKYC: ${existingProfile.eKYC}`);
+      console.log(`     - aKYC: ${existingProfile.aKYC}`);
+    }
+    console.log(`   ====================================\n`);
 
     res.json(response);
   } catch (error: any) {
@@ -602,6 +639,13 @@ app.post('/register', async (req: Request, res: Response) => {
       chainId: BigInt(chainId),
     };
 
+    console.log(`\n📝 ========== CONTRACT DATA INPUT (REGISTER) ==========`);
+    console.log(`   Creating attested data structure for contract:`);
+    console.log(`   - score: ${attestedData.score} (${score})`);
+    console.log(`   - timeAtWhichAttested: ${attestedData.timeAtWhichAttested} (${new Date(timeAtWhichAttested * 1000).toISOString()})`);
+    console.log(`   - chainId: ${attestedData.chainId} (${chainId})`);
+    console.log(`   ====================================================`);
+
     const { encodeAbiParameters, keccak256 } = await import('viem');
     const encodedData = encodeAbiParameters(
       [
@@ -613,10 +657,19 @@ app.post('/register', async (req: Request, res: Response) => {
     );
 
     const dataHash = keccak256(encodedData);
+
+    console.log(`\n🔐 ========== SIGNATURE GENERATION (REGISTER) ==========`);
+    console.log(`   Encoded data (ABI): ${encodedData}`);
+    console.log(`   Data hash: ${dataHash}`);
+    console.log(`   Signing with TEE account: ${teeAccount}`);
+
     const signature = await teeWallet.signMessage({
       account: teeWallet.account!,
       message: { raw: dataHash },
     });
+
+    console.log(`   ✅ Signature generated: ${signature.slice(0, 20)}...${signature.slice(-10)}`);
+    console.log(`   ======================================================`);
 
     // eKYC and aKYC start as false on registration
     // They will be updated to true only after manual verification by compliance team
@@ -672,6 +725,20 @@ app.post('/register', async (req: Request, res: Response) => {
       registeredAt: timeAtWhichAttested,
       lastAttestationAt: timeAtWhichAttested,
     });
+
+    console.log(`\n📤 ========== API RESPONSE (REGISTER) ==========`);
+    console.log(`   Registration successful for ${userAddress}`);
+    console.log(`   - username: ${usernameLower}`);
+    console.log(`   - ensFullName: ${ensFullName}`);
+    console.log(`   - score: ${score}/1000`);
+    console.log(`   - eKYC: ${eKYCStatus}`);
+    console.log(`   - aKYC: ${aKYCStatus}`);
+    console.log(`   - attestedData.score: ${attestedData.score.toString()}`);
+    console.log(`   - attestedData.timeAtWhichAttested: ${attestedData.timeAtWhichAttested.toString()}`);
+    console.log(`   - attestedData.chainId: ${attestedData.chainId.toString()}`);
+    console.log(`   - signature: ${signature.slice(0, 20)}...${signature.slice(-10)}`);
+    console.log(`   - teeAddress: ${teeAccount}`);
+    console.log(`   ===============================================\n`);
 
     res.status(201).json({
       success: true,

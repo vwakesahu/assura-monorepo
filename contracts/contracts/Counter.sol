@@ -12,11 +12,11 @@ contract Counter {
     event Increment(uint by);
 
     function onlyUserWithScore100() public pure returns (AssuraTypes.VerifyingData memory) {
-        return AssuraTypes.VerifyingData({score: 100, expiry: 0, chainId: 0});
+        return AssuraTypes.VerifyingData({score: 5, expiry: 0, chainId: 0});
     }
 
     function onlyUserWithScore30() public pure returns (AssuraTypes.VerifyingData memory) {
-        return AssuraTypes.VerifyingData({score: 30, expiry: 0, chainId: 0});
+        return AssuraTypes.VerifyingData({score: 10, expiry: 0, chainId: 0});
     }
 
     function getOnlyUserWithScore100Selector() public pure returns (bytes32) {
