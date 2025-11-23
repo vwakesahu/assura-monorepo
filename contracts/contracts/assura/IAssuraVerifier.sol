@@ -56,4 +56,17 @@ interface IAssuraVerifier {
         bytes32 key,
         bytes calldata attestedComplianceData
     ) external returns (bool);
+
+    /**
+     * @notice Get bypass entry for a user/app/key combination
+     * @param user The user address
+     * @param app The app contract address
+     * @param key The verification key identifier
+     * @return bypassData The bypass entry data
+     */
+    function getBypassEntry(
+        address user,
+        address app,
+        bytes32 key
+    ) external view returns (AssuraTypes.BypassData memory bypassData);
 }

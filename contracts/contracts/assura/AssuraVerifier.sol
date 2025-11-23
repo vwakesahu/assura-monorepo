@@ -116,7 +116,22 @@ contract AssuraVerifier is IAssuraVerifier, EIP712, Ownable {
     ) external view override returns (AssuraTypes.VerifyingData memory) {
         return verifyingData[appContractAddress][key];
     }
-    
+
+    /**
+     * @notice Get bypass entry for a user/app/key combination
+     * @param user The user address
+     * @param app The app contract address
+     * @param key The verification key identifier
+     * @return bypassData The bypass entry data
+     */
+    function getBypassEntry(
+        address user,
+        address app,
+        bytes32 key
+    ) external view override returns (AssuraTypes.BypassData memory) {
+        return bypassEntries[user][app][key];
+    }
+
     /**
      * @notice Internal function to check compliance with bypass logic
      * @param app The app contract address

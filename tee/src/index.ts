@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
+import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
 import { getTeePrivateKey, isTeeEnvironment } from './utils/tee-keys';
 import { connectWallet, secretKeyToAccount, checksumAddress, signPersonalMessage, type WalletClient } from './utils/wallet';
@@ -13,6 +14,7 @@ import {
   createSubname,
   getTextRecords,
   getTextRecord,
+  deleteSubname,
 } from './utils/subname-manager';
 import {
   addUserAttestation,
@@ -27,6 +29,8 @@ import {
   isUsernameAvailable,
   hasRegisteredUsername,
   getAllProfiles,
+  deleteUserProfile,
+  deleteUserByAddress,
 } from './utils/user-storage';
 import { isSanctioned, getSanctionsStats, refreshSanctionsList } from './utils/sanctions-checker';
 import { calculateInitialScore, calculateComplianceScore } from './utils/score-calculator';
@@ -93,6 +97,7 @@ async function initializeTeeWallet() {
 })();
 
 // Middleware
+app.use(cors()); // Enable CORS for all origins
 app.use(express.json({ limit: '10mb' }));
 
 // In-memory job storage
@@ -130,6 +135,8 @@ app.get('/', (req: Request, res: Response) => {
       usernameAvailable: 'GET /username/:username/available',
       profiles: 'GET /profiles',
       updateCompliance: 'PUT /profile/:username/compliance',
+      deleteUser: 'DELETE /user/:username (delete by username)',
+      deleteUserByAddress: 'DELETE /user/address/:address (delete by address)',
       sanctions: 'GET /sanctions/stats',
       refreshSanctions: 'POST /sanctions/refresh',
       summarize: 'POST /summarize-doc',
@@ -857,6 +864,118 @@ app.get('/profiles', (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error fetching profiles:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch profiles' });
+  }
+});
+
+// DELETE: Delete user by username
+app.delete('/user/:username', async (req: Request, res: Response) => {
+  try {
+    const { username } = req.params;
+
+    if (!username || typeof username !== 'string') {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    const usernameLower = username.toLowerCase();
+
+    // Get profile to find ENS subname
+    const profile = getUserProfile(usernameLower);
+    if (!profile) {
+      return res.status(404).json({
+        error: `User not found with username "${username}"`,
+      });
+    }
+
+    // Delete ENS subname
+    try {
+      await deleteSubname(profile.ensFullName);
+      console.log(`✅ Deleted ENS subname: ${profile.ensFullName}`);
+    } catch (error: any) {
+      console.error(`⚠️  Failed to delete ENS subname: ${error.message}`);
+      // Continue with local deletion even if ENS deletion fails
+    }
+
+    // Delete user profile and all associated data from local storage
+    const deletedProfile = deleteUserProfile(usernameLower);
+    if (!deletedProfile) {
+      return res.status(404).json({
+        error: `User profile not found for username "${username}"`,
+      });
+    }
+
+    console.log(`\n🗑️  ========== USER DELETION ==========`);
+    console.log(`   Deleted user: ${usernameLower}`);
+    console.log(`   Address: ${deletedProfile.userAddress}`);
+    console.log(`   ENS Subname: ${deletedProfile.ensFullName}`);
+    console.log(`   ====================================\n`);
+
+    res.json({
+      success: true,
+      message: `User "${username}" and associated data deleted successfully`,
+      deletedProfile: {
+        username: deletedProfile.username,
+        userAddress: deletedProfile.userAddress,
+        ensFullName: deletedProfile.ensFullName,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete user' });
+  }
+});
+
+// DELETE: Delete user by address
+app.delete('/user/address/:address', async (req: Request, res: Response) => {
+  try {
+    const { address } = req.params;
+
+    if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
+      return res.status(400).json({ error: 'Invalid Ethereum address format' });
+    }
+
+    // Get profile to find ENS subname
+    const profile = getUserProfileByAddress(address);
+    if (!profile) {
+      return res.status(404).json({
+        error: `No user found for address ${address}`,
+      });
+    }
+
+    // Delete ENS subname
+    try {
+      await deleteSubname(profile.ensFullName);
+      console.log(`✅ Deleted ENS subname: ${profile.ensFullName}`);
+    } catch (error: any) {
+      console.error(`⚠️  Failed to delete ENS subname: ${error.message}`);
+      // Continue with local deletion even if ENS deletion fails
+    }
+
+    // Delete user profile and all associated data from local storage
+    const deletedProfile = deleteUserByAddress(address);
+    if (!deletedProfile) {
+      return res.status(404).json({
+        error: `User profile not found for address ${address}`,
+      });
+    }
+
+    console.log(`\n🗑️  ========== USER DELETION ==========`);
+    console.log(`   Deleted user by address: ${address}`);
+    console.log(`   Username: ${deletedProfile.username}`);
+    console.log(`   ENS Subname: ${deletedProfile.ensFullName}`);
+    console.log(`   ====================================\n`);
+
+    res.json({
+      success: true,
+      message: `User with address ${address} and associated data deleted successfully`,
+      deletedProfile: {
+        username: deletedProfile.username,
+        userAddress: deletedProfile.userAddress,
+        ensFullName: deletedProfile.ensFullName,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error deleting user by address:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete user' });
   }
 });
 

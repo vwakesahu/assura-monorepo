@@ -365,18 +365,16 @@ describe("Comprehensive Vault E2E Tests on Base Sepolia", async function () {
   it("Should deploy AssuraProtectedVault contract", async function () {
     console.log("\n=== Deploying AssuraProtectedVault ===");
 
-    // Use a placeholder verification key and minScore for constructor
+    // Use a placeholder verification key for constructor
     // The actual verifying data will be set using selectors
     const verificationKey = keccak256(toBytes("AssuraProtectedVault"));
-    const minScore = 50n;
 
     const vault = await viem.deployContract("AssuraProtectedVault", [
       mockERC20Address,
       "Assura Protected Vault",
       "APV",
       assuraVerifierAddress,
-      verificationKey,
-      minScore,
+      verificationKey
     ]);
 
     vaultAddress = vault.address;
@@ -393,13 +391,11 @@ describe("Comprehensive Vault E2E Tests on Base Sepolia", async function () {
     // Verify deployment with retries
     let verifier: `0x${string}` | undefined;
     let key: `0x${string}` | undefined;
-    let score: bigint | undefined;
     for (let i = 0; i < 5; i++) {
       try {
         verifier = await (vaultContract as any).read.assuraVerifier();
         key = await (vaultContract as any).read.verificationKey();
-        score = await (vaultContract as any).read.minScore();
-        if (verifier && key && score !== undefined) break;
+        if (verifier && key) break;
       } catch (error) {
         if (i === 4) throw error;
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -408,18 +404,15 @@ describe("Comprehensive Vault E2E Tests on Base Sepolia", async function () {
     
     assert.ok(verifier, "Verifier should be set");
     assert.ok(key, "Key should be set");
-    assert.ok(score !== undefined, "Score should be set");
     assert.equal(
       verifier!.toLowerCase(),
       assuraVerifierAddress.toLowerCase(),
       "Vault should have correct AssuraVerifier"
     );
     assert.equal(key, verificationKey, "Vault should have correct verification key");
-    assert.equal(score, minScore, "Vault should have correct min score");
 
     console.log(`✓ Vault verifier: ${verifier}`);
     console.log(`✓ Vault verification key: ${key}`);
-    console.log(`✓ Vault min score: ${score}`);
 
     // Get selectors from vault contract
     depositSelector = await (vaultContract.read as any).getOnlyUserWithScore100Selector();

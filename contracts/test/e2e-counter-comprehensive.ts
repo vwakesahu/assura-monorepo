@@ -260,9 +260,9 @@ describe("Comprehensive Counter E2E Tests on Base Sepolia", async function () {
     console.log(`✓ Chain ID: ${chainId}`);
 
     // Verify deployment with retries
-    let owner: `0x${string}`;
-    let teeAddr: `0x${string}`;
-    let nexusDeployer: `0x${string}`;
+    let owner: `0x${string}` | undefined;
+    let teeAddr: `0x${string}` | undefined;
+    let nexusDeployer: `0x${string}` | undefined;
     for (let i = 0; i < 5; i++) {
       try {
         owner = await assuraVerifierContract.read.owner();
@@ -275,9 +275,13 @@ describe("Comprehensive Counter E2E Tests on Base Sepolia", async function () {
       }
     }
 
-    assert.equal(owner!.toLowerCase(), ownerAddress.toLowerCase());
-    assert.equal(teeAddr!.toLowerCase(), teeAddress.toLowerCase());
-    assert.notEqual(nexusDeployer!, "0x0000000000000000000000000000000000000000");
+    assert(owner, "Owner should be set");
+    assert(teeAddr, "TEE address should be set");
+    assert(nexusDeployer, "NexusDeployer should be set");
+
+    assert.equal(owner.toLowerCase(), ownerAddress.toLowerCase());
+    assert.equal(teeAddr.toLowerCase(), teeAddress.toLowerCase());
+    assert.notEqual(nexusDeployer, "0x0000000000000000000000000000000000000000");
 
     console.log(`✓ NexusAccountDeployer deployed at: ${nexusDeployer}`);
   });
@@ -1322,6 +1326,139 @@ describe("Comprehensive Counter E2E Tests on Base Sepolia", async function () {
     const expectedSecond = valueBeforeSecond + 1n;
     assert.equal(valueAfterSecond, expectedSecond, `Second signature should work: ${valueBeforeSecond} + 1 = ${expectedSecond}, but got ${valueAfterSecond}`);
     console.log(`✓ Both signatures worked: ${initialValue} → ${valueAfterEIP191} → ${valueAfterSecond}`);
+  });
+
+  // ============ Vault with Hooks Tests ============
+
+  it("Should deploy and test Vault with Delayed Deposit Hooks", async function (this: { skip: () => void }) {
+    console.log("\n=== Testing Vault with Delayed Deposit Hooks ===");
+
+    // Step 1: Deploy mock asset (mUSDC)
+    console.log("\n📦 Step 1: Deploying Mock Asset");
+    const assetDeployment = await viem.deployContract("MockERC20", [
+      "Mock USDC",
+      "mUSDC",
+      6n,
+    ]);
+    const assetAddress = assetDeployment.address;
+    console.log(`  ✓ Mock USDC deployed at: ${assetAddress}`);
+
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // Get typed contract instance
+    const assetContract = await viem.getContractAt("MockERC20", assetAddress);
+
+    // Mint tokens to user
+    const mintAmount = 1000000n * 10n ** 6n; // 1M USDC
+    const mintHash = await assetContract.write.mint([userAddress, mintAmount], {
+      account: ownerAccount,
+    });
+    await publicClient.waitForTransactionReceipt({ hash: mintHash });
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const balance = await assetContract.read.balanceOf([userAddress]);
+    console.log(`  ✓ Minted ${Number(balance) / 1e6} mUSDC to user`);
+
+    // Step 2: Deploy Vault
+    console.log("\n📦 Step 2: Deploying Vault with Hooks");
+    const verificationKey = keccak256(toBytes("DEFAULT_KEY"));
+
+    const vaultDeployment = await viem.deployContract("AssuraProtectedVaultWithHooks", [
+      assetAddress,
+      "Assura Vault Shares",
+      "aVaultS",
+      assuraVerifierAddress,
+      verificationKey,
+      "0x0000000000000000000000000000000000000000" as `0x${string}`,
+    ]);
+    const vaultAddress = vaultDeployment.address;
+    console.log(`  ✓ Vault deployed at: ${vaultAddress}`);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    const vaultContract = await viem.getContractAt("AssuraProtectedVaultWithHooks", vaultAddress);
+
+    // Step 3: Deploy Hook
+    console.log("\n📦 Step 3: Deploying DelayedDepositHook");
+    const nexusDeployerAddress = await assuraVerifierContract.read.getNexusAccountDeployer();
+
+    const hookDeployment = await viem.deployContract("DelayedDepositHook", [
+      vaultAddress,
+      nexusDeployerAddress,
+    ]);
+    const hookAddress = hookDeployment.address;
+    console.log(`  ✓ Hook deployed at: ${hookAddress}`);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // Step 4: Configure vault with hook
+    console.log("\n⚙️  Step 4: Configuring Vault");
+    const setHookHash = await vaultContract.write.setDepositHook([hookAddress], {
+      account: ownerAccount,
+    });
+    await publicClient.waitForTransactionReceipt({ hash: setHookHash });
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log(`  ✓ Vault configured with hook`);
+
+    // Step 5: Deploy Manager
+    console.log("\n📦 Step 5: Deploying DelayedDepositManager");
+    const managerDeployment = await viem.deployContract("DelayedDepositManager", []);
+    const managerAddress = managerDeployment.address;
+    console.log(`  ✓ Manager deployed at: ${managerAddress}`);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const managerContract = await viem.getContractAt("DelayedDepositManager", managerAddress);
+
+    // Step 6: Test delayed deposit flow
+    console.log("\n🧪 Step 6: Testing Delayed Deposit Flow");
+
+    const attestation = await getAttestation(userAddress, Number(chainId), teeServiceUrl);
+    const userScore = BigInt(attestation.attestedData.score);
+
+
+    // Approve vault
+    const depositAmount = 1000n * 10n ** 6n; // 1000 USDC
+    const approveHash = await assetContract.write.approve([vaultAddress, depositAmount], {
+      account: userAccount,
+    });
+    await publicClient.waitForTransactionReceipt({ hash: approveHash });
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log(`  ✓ Approved ${Number(depositAmount) / 1e6} mUSDC for vault`);
+
+    // Attempt deposit
+    const key = await (vaultContract.read as any).getOnlyUserWithScore100Selector();
+    const attestedData = {
+      score: userScore,
+      timeAtWhichAttested: BigInt(attestation.attestedData.timeAtWhichAttested),
+      chainId: BigInt(attestation.attestedData.chainId),
+    };
+
+    const complianceData = createComplianceData(
+      userAddress,
+      key,
+      attestation.signature as `0x${string}`,
+      attestedData
+    );
+
+    const initialUserBalance = await assetContract.read.balanceOf([userAddress]);
+    const depositHash = await vaultContract.write.depositWithScore100(
+      [depositAmount, userAddress, complianceData],
+      { account: userAccount }
+    );
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: depositHash });
+    assert.equal(receipt.status, "success", "Deposit transaction should succeed");
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const newUserBalance = await assetContract.read.balanceOf([userAddress]);
+    const balanceChanged = initialUserBalance - newUserBalance;
+    console.log(`  ✓ Deposit processed (${Number(balanceChanged) / 1e6} mUSDC transferred)`);
+
+
+    console.log("\n✅ Vault with Hooks test completed successfully");
+    console.log("\n📊 Summary:");
+    console.log(`  - Vault: ${vaultAddress}`);
+    console.log(`  - Hook: ${hookAddress}`);
+    console.log(`  - Manager: ${managerAddress}`);
+    console.log(`  - Asset: ${assetAddress}`);
   });
 });
 
