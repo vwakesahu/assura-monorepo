@@ -107,8 +107,20 @@ export default function VaultDeposit() {
   const [sendAmount, setSendAmount] = useState('')
   const [recipientInput, setRecipientInput] = useState('')
   const [resolvedAddress, setResolvedAddress] = useState<`0x${string}` | null>(null)
-  const [ensTextRecords, setEnsTextRecords] = useState<Record<string, string>>({})
   const [isResolvingEns, setIsResolvingEns] = useState(false)
+  const [ensTextRecords, setEnsTextRecords] = useState<Array<{ key: string; value: string }>>([])
+  const [ensSubname, setEnsSubname] = useState<string | null>(null)
+  const [userProfile, setUserProfile] = useState<{
+    userAddress: string
+    username: string
+    ensFullName: string
+    score: number
+    eKYC: boolean
+    aKYC: boolean
+    registeredAt: number
+    lastAttestationAt: number
+  } | null>(null)
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false)
   const [isSendSuccess, setIsSendSuccess] = useState(false)
   const [sendTxHash, setSendTxHash] = useState<`0x${string}` | undefined>(undefined)
   const [sendTxHashForWait, setSendTxHashForWait] = useState<`0x${string}` | undefined>(undefined)
@@ -254,6 +266,39 @@ export default function VaultDeposit() {
     window.open('https://app.assura.network/mint', '')
   }
 
+  // Get recipient score from userProfile or ENS text records
+  const getRecipientScore = (): number | null => {
+    // First try userProfile
+    if (userProfile?.score !== undefined && userProfile.score !== null) {
+      return Number(userProfile.score)
+    }
+
+    // Then try ENS text records
+    const scoreRecord = ensTextRecords.find(record => record.key === 'score')
+    if (scoreRecord) {
+      const score = parseInt(scoreRecord.value, 10)
+      if (!isNaN(score)) {
+        return score
+      }
+    }
+
+    return null
+  }
+
+  // Get score color based on range
+  const getScoreColor = (score: number | null): string => {
+    if (score === null) return 'text-foreground'
+    if (score < 35) return 'text-red-500'
+    if (score <= 70) return 'text-yellow-500'
+    return 'text-green-500'
+  }
+
+  // Check if score is too low to send
+  const isScoreTooLow = (): boolean => {
+    const score = getRecipientScore()
+    return score !== null && score < 35
+  }
+
   // Debounce recipient input to avoid excessive RPC calls
   const [debouncedRecipientInput] = useDebounce(recipientInput, 500)
 
@@ -262,7 +307,9 @@ export default function VaultDeposit() {
     const resolveENS = async () => {
       if (!debouncedRecipientInput) {
         setResolvedAddress(null)
-        setEnsTextRecords({})
+        setUserProfile(null)
+        setEnsTextRecords([])
+        setEnsSubname(null)
         setIsResolvingEns(false)
         setError(null)
         return
@@ -275,19 +322,42 @@ export default function VaultDeposit() {
           if (!/^0x[a-fA-F0-9]{40}$/.test(debouncedRecipientInput)) {
             setError('Invalid address format')
             setResolvedAddress(null)
-            setEnsTextRecords({})
+            setUserProfile(null)
             setIsResolvingEns(false)
             return
           }
           setResolvedAddress(debouncedRecipientInput as `0x${string}`)
-          setEnsTextRecords({})
+          setUserProfile(null)
+          setEnsTextRecords([])
+          setEnsSubname(null)
           setIsResolvingEns(false)
           setError(null)
+
+          // Fetch user profile for address
+          setIsLoadingProfile(true)
+          try {
+            const currentChainId = chainId || currentChain.id
+            const profileResponse = await fetch(`${TEE_SERVICE_URL}/profile/${debouncedRecipientInput}?chainId=${currentChainId}`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            })
+
+            if (profileResponse.ok) {
+              const profile = await profileResponse.json()
+              setUserProfile(profile)
+            }
+          } catch (error) {
+            console.debug('Failed to fetch user profile:', error)
+          } finally {
+            setIsLoadingProfile(false)
+          }
         } catch (error) {
           console.error('Address validation error:', error)
           setError('Invalid address format')
           setResolvedAddress(null)
-          setEnsTextRecords({})
+          setUserProfile(null)
           setIsResolvingEns(false)
         }
         return
@@ -296,42 +366,92 @@ export default function VaultDeposit() {
       // Try to resolve ENS name using mainnet client
       setIsResolvingEns(true)
       setError(null)
+      setUserProfile(null)
+      setEnsTextRecords([])
+      setEnsSubname(null)
       try {
         const address = await mainnetPublicClient.getEnsAddress({ name: debouncedRecipientInput })
         if (address) {
           setResolvedAddress(address)
           setError(null)
+          setEnsSubname(debouncedRecipientInput)
 
-          // Fetch text records
-          try {
-            const resolver = await mainnetPublicClient.getEnsResolver({ name: debouncedRecipientInput })
-            if (resolver) {
-              // Fetch common text records
-              const textRecordKeys = ['description', 'url', 'avatar', 'com.twitter', 'com.github', 'com.discord', 'email']
-              const records: Record<string, string> = {}
+          // Fetch all ENS text records and user profile in parallel
+          const [textRecordsResult, profileResult] = await Promise.allSettled([
+            // Fetch all ENS text records
+            (async () => {
+              try {
+                const resolver = await mainnetPublicClient.getEnsResolver({ name: debouncedRecipientInput })
+                if (resolver) {
+                  // Try to fetch all possible text record keys
+                  // Common keys and also try to get all records if possible
+                  const commonKeys = [
+                    'description', 'url', 'avatar', 'com.twitter', 'com.github', 'com.discord', 'email',
+                    'score', 'eKYC', 'aKYC', 'registeredAt', 'teeAddress', 'subname'
+                  ]
+                  const records: Array<{ key: string; value: string }> = []
 
-              for (const key of textRecordKeys) {
-                try {
-                  const value = await mainnetPublicClient.getEnsText({ name: debouncedRecipientInput, key })
-                  if (value) {
-                    records[key] = value
+                  for (const key of commonKeys) {
+                    try {
+                      const value = await mainnetPublicClient.getEnsText({ name: debouncedRecipientInput, key })
+                      if (value) {
+                        records.push({ key, value })
+                      }
+                    } catch {
+                      // Ignore errors for individual text records
+                    }
                   }
-                } catch (textError) {
-                  // Ignore errors for individual text records
-                  console.debug(`Failed to fetch text record ${key}:`, textError)
-                }
-              }
 
-              setEnsTextRecords(records)
-            }
-          } catch (resolverError) {
-            // If text records fail, just continue with address
-            console.debug('Failed to get ENS resolver:', resolverError)
-            setEnsTextRecords({})
+                  // Also try to get all text records using a different approach
+                  // Some ENS resolvers support getting all records
+                  // For now, we'll use the common keys approach
+                  return records
+                }
+                return []
+              } catch {
+                return []
+              }
+            })(),
+            // Fetch user profile from TEE service
+            (async () => {
+              setIsLoadingProfile(true)
+              try {
+                const currentChainId = chainId || currentChain.id
+                const profileResponse = await fetch(`${TEE_SERVICE_URL}/profile/${address}?chainId=${currentChainId}`, {
+                  method: 'GET',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                })
+
+                if (profileResponse.ok) {
+                  const profile = await profileResponse.json()
+                  return profile
+                }
+                return null
+              } catch (error) {
+                console.debug('Failed to fetch user profile:', error)
+                return null
+              } finally {
+                setIsLoadingProfile(false)
+              }
+            })(),
+          ])
+
+          // Set text records
+          if (textRecordsResult.status === 'fulfilled') {
+            setEnsTextRecords(textRecordsResult.value)
+          }
+
+          // Set user profile
+          if (profileResult.status === 'fulfilled' && profileResult.value) {
+            setUserProfile(profileResult.value)
           }
         } else {
           setResolvedAddress(null)
-          setEnsTextRecords({})
+          setUserProfile(null)
+          setEnsTextRecords([])
+          setEnsSubname(null)
           setError('ENS name not found')
         }
       } catch (error) {
@@ -341,14 +461,17 @@ export default function VaultDeposit() {
           ? 'ENS name not found'
           : 'Failed to resolve ENS name. Please check the name and try again.')
         setResolvedAddress(null)
-        setEnsTextRecords({})
+        setUserProfile(null)
+        setEnsTextRecords([])
+        setEnsSubname(null)
       } finally {
         setIsResolvingEns(false)
+        setIsLoadingProfile(false)
       }
     }
 
     resolveENS()
-  }, [debouncedRecipientInput, mainnetPublicClient])
+  }, [debouncedRecipientInput, mainnetPublicClient, chainId])
 
   // Handle send transfer
   const handleSendTransfer = async (e?: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>) => {
@@ -369,6 +492,13 @@ export default function VaultDeposit() {
 
     if (!resolvedAddress) {
       setError('Please enter a valid recipient address or ENS name')
+      return
+    }
+
+    // Check score - prevent transaction if score < 35
+    const recipientScore = getRecipientScore()
+    if (recipientScore !== null && recipientScore < 35) {
+      setError(`Cannot send: Recipient score (${recipientScore}) is too low. Minimum score required: 35`)
       return
     }
 
@@ -851,7 +981,9 @@ export default function VaultDeposit() {
                   setRecipientInput('')
                   setSendAmount('')
                   setResolvedAddress(null)
-                  setEnsTextRecords({})
+                  setUserProfile(null)
+                  setEnsTextRecords([])
+                  setEnsSubname(null)
                   setError(null)
                   setIsSendSuccess(false)
                   setSendTxHash(undefined)
@@ -1295,7 +1427,9 @@ export default function VaultDeposit() {
                   setRecipientInput('')
                   setSendAmount('')
                   setResolvedAddress(null)
-                  setEnsTextRecords({})
+                  setUserProfile(null)
+                  setEnsTextRecords([])
+                  setEnsSubname(null)
                 }}
                 className="rounded-full font-light h-12 px-8 text-sm bg-background text-foreground hover:bg-background/90"
               >
@@ -1305,9 +1439,9 @@ export default function VaultDeposit() {
           ) : (
             // Send Form
             <>
-              <AlertDialogHeader className="mb-4">
-                <div className="flex items-center gap-3 mb-1">
-                  <div className="relative w-10 h-10 rounded-full overflow-hidden">
+              <AlertDialogHeader className="mb-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="relative w-8 h-8 rounded-full overflow-hidden">
                     <Image
                       src={selectedToken.image}
                       alt={selectedToken.name}
@@ -1315,10 +1449,10 @@ export default function VaultDeposit() {
                       className="object-cover"
                     />
                   </div>
-                  <AlertDialogTitle className="text-3xl font-light">Send {selectedToken.symbol}</AlertDialogTitle>
+                  <AlertDialogTitle className="text-2xl font-light">Send {selectedToken.symbol}</AlertDialogTitle>
                 </div>
-                <AlertDialogDescription className="text-base font-light text-muted-foreground">
-                  Enter recipient address or ENS name and amount to send
+                <AlertDialogDescription className="text-sm font-light text-muted-foreground">
+                  Enter recipient address or ENS name and amount
                 </AlertDialogDescription>
               </AlertDialogHeader>
 
@@ -1328,13 +1462,13 @@ export default function VaultDeposit() {
                 </div>
               )}
 
-              <div className="space-y-4">
-                {/* Available Balance */}
+              <div className="space-y-3">
+                {/* Available Balance - Compact */}
                 {balance && (
-                  <div className="p-4 border border-border rounded-3xl bg-card/50">
-                    <div className="text-xs font-light text-muted-foreground mb-2 uppercase tracking-wider">Available Balance</div>
-                    <div className="flex items-center gap-3">
-                      <div className="relative w-8 h-8 rounded-full overflow-hidden">
+                  <div className="p-3 border border-border rounded-xl bg-card/50">
+                    <div className="text-xs font-light text-muted-foreground mb-1.5 uppercase tracking-wider">Available Balance</div>
+                    <div className="flex items-center gap-2">
+                      <div className="relative w-6 h-6 rounded-full overflow-hidden">
                         <Image
                           src={selectedToken.image}
                           alt={selectedToken.name}
@@ -1342,7 +1476,7 @@ export default function VaultDeposit() {
                           className="object-cover"
                         />
                       </div>
-                      <div className="text-2xl font-light text-foreground">
+                      <div className="text-xl font-light text-foreground">
                         {formatNumberWithCommas(
                           parseFloat(formatUnits(balance.value, balance.decimals)),
                           2
@@ -1354,51 +1488,157 @@ export default function VaultDeposit() {
 
                 {/* Recipient Address/ENS Input */}
                 <div>
-                  <div className="text-xs font-light text-muted-foreground mb-2 uppercase tracking-wider">Recipient</div>
+                  <div className="text-xs font-light text-muted-foreground mb-1.5 uppercase tracking-wider">Recipient</div>
                   <Input
                     type="text"
                     placeholder="0x... or ENS name"
                     value={recipientInput}
                     onChange={(e) => setRecipientInput(e.target.value)}
-                    className="text-2xl font-light h-16 border-2 border-border rounded-full bg-transparent focus-visible:ring-0 focus-visible:border-foreground transition-colors placeholder:text-lg"
+                    className="text-lg font-light h-12 border-2 border-border rounded-full bg-transparent focus-visible:ring-0 focus-visible:border-foreground transition-colors placeholder:text-base"
                   />
                   {isResolvingEns && (
                     <div className="text-sm font-light text-muted-foreground mt-2">Resolving ENS...</div>
                   )}
                   {resolvedAddress && !isResolvingEns && (
-                    <div className="mt-2">
+                    <div className="mt-2 space-y-2">
                       <div className="text-sm font-light text-foreground">
                         {recipientInput.includes('.') ? `${recipientInput} → ` : ''}
-                        <span className="text-muted-foreground font-mono">{resolvedAddress}</span>
+                        <span className="text-muted-foreground font-mono text-xs">{resolvedAddress}</span>
                       </div>
-                      {/* ENS Text Records */}
-                      {Object.keys(ensTextRecords).length > 0 && (
-                        <div className="mt-3 p-3 border border-border rounded-2xl bg-card/30">
-                          <div className="text-xs font-light text-muted-foreground mb-2 uppercase tracking-wider">ENS Records</div>
-                          <div className="space-y-1">
-                            {Object.entries(ensTextRecords).map(([key, value]) => (
-                              <div key={key} className="flex justify-between items-center text-sm">
-                                <span className="font-light text-muted-foreground">{key}:</span>
-                                <span className="font-light text-foreground break-all ml-2">{value}</span>
-                              </div>
-                            ))}
+
+                      {/* Score Warning */}
+                      {isScoreTooLow() && (
+                        <div className="p-2 border border-red-500/50 rounded-lg bg-red-500/10">
+                          <div className="text-xs font-light text-red-500">
+                            ⚠️ Recipient score is too low ({getRecipientScore()}). Minimum score required: 35
                           </div>
                         </div>
                       )}
+
+                      {/* ENS Text Records - Show all text records */}
+                      {ensTextRecords.length > 0 && (
+                        <div className="p-3 border border-border rounded-xl bg-card/30">
+                          <div className="text-xs font-light text-muted-foreground mb-2 uppercase tracking-wider">
+                            All Text Records
+                            {ensSubname && <span className="normal-case ml-1">({ensSubname})</span>}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            {ensTextRecords.map((record) => {
+                              // Format timestamp values (registeredAt, lastAttestationAt) as dates
+                              let displayValue = record.value
+                              const timestampKeys = ['registeredAt', 'lastAttestationAt']
+                              if (timestampKeys.includes(record.key)) {
+                                const timestamp = parseInt(record.value, 10)
+                                if (!isNaN(timestamp) && timestamp > 0) {
+                                  displayValue = new Date(timestamp * 1000).toLocaleDateString()
+                                }
+                              }
+
+                              // Format boolean values
+                              if (record.key === 'eKYC' || record.key === 'aKYC') {
+                                const boolValue = record.value.toLowerCase() === 'true'
+                                displayValue = boolValue ? '✓' : '✗'
+                              }
+
+                              // Get color for score
+                              let scoreColor = ''
+                              if (record.key === 'score') {
+                                const score = parseInt(record.value, 10)
+                                if (!isNaN(score)) {
+                                  scoreColor = getScoreColor(score)
+                                }
+                              }
+
+                              return (
+                                <div key={record.key} className="truncate">
+                                  <span className="text-muted-foreground">{record.key}:</span>
+                                  <span
+                                    className={`ml-1 truncate block ${record.key === 'eKYC' || record.key === 'aKYC'
+                                      ? (record.value.toLowerCase() === 'true' ? 'text-green-500' : 'text-red-500')
+                                      : scoreColor || 'text-foreground'
+                                      }`}
+                                    title={record.value}
+                                  >
+                                    {displayValue}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* User Profile Data - Compact Grid */}
+                      {(userProfile || isLoadingProfile) && (
+                        <div className="p-3 border border-border rounded-xl bg-card/30">
+                          <div className="text-xs font-light text-muted-foreground mb-2 uppercase tracking-wider">
+                            User Profile {isLoadingProfile && '(Loading...)'}
+                          </div>
+                          {userProfile && (
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <span className="text-muted-foreground">Username:</span>
+                                <span className="text-foreground ml-1">{userProfile.username || 'N/A'}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">ENS:</span>
+                                <span className="text-foreground ml-1">{userProfile.ensFullName || 'N/A'}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Score:</span>
+                                <span className={`ml-1 ${getScoreColor(userProfile.score ?? null)}`}>
+                                  {userProfile.score ?? 'N/A'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Address:</span>
+                                <span className="text-foreground font-mono ml-1 text-[10px] break-all">
+                                  {userProfile.userAddress.slice(0, 6)}...{userProfile.userAddress.slice(-4)}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">eKYC:</span>
+                                <span className={`ml-1 ${userProfile.eKYC ? 'text-green-500' : 'text-red-500'}`}>
+                                  {userProfile.eKYC ? '✓' : '✗'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">aKYC:</span>
+                                <span className={`ml-1 ${userProfile.aKYC ? 'text-green-500' : 'text-red-500'}`}>
+                                  {userProfile.aKYC ? '✓' : '✗'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Registered:</span>
+                                <span className="text-foreground ml-1 text-[10px]">
+                                  {userProfile.registeredAt ? new Date(userProfile.registeredAt * 1000).toLocaleDateString() : 'N/A'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Last Attest:</span>
+                                <span className="text-foreground ml-1 text-[10px]">
+                                  {userProfile.lastAttestationAt ? new Date(userProfile.lastAttestationAt * 1000).toLocaleDateString() : 'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                     </div>
                   )}
                 </div>
 
                 {/* Amount Input */}
                 <div>
-                  <div className="text-xs font-light text-muted-foreground mb-2 uppercase tracking-wider">Amount</div>
+                  <div className="text-xs font-light text-muted-foreground mb-1.5 uppercase tracking-wider">Amount</div>
                   <div className="relative">
                     <Input
                       type="number"
                       placeholder="0.00"
                       value={sendAmount}
                       onChange={(e) => setSendAmount(e.target.value)}
-                      className="text-3xl font-light h-16 pr-20 border-0 border-b-2 border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-foreground transition-colors"
+                      className="text-2xl font-light h-12 pr-16 border-0 border-b-2 border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-foreground transition-colors"
                     />
                     {balance && (
                       <button
@@ -1408,7 +1648,7 @@ export default function VaultDeposit() {
                             setSendAmount(formatted)
                           }
                         }}
-                        className="absolute right-0 top-1/2 -translate-y-1/2 text-sm font-light text-muted-foreground hover:text-foreground transition-colors"
+                        className="absolute right-0 top-1/2 -translate-y-1/2 text-xs font-light text-muted-foreground hover:text-foreground transition-colors"
                       >
                         Max
                       </button>
@@ -1416,18 +1656,17 @@ export default function VaultDeposit() {
                   </div>
                 </div>
 
-                {/* Summary */}
+                {/* Summary - Compact */}
                 {sendAmount && parseFloat(sendAmount) > 0 && resolvedAddress && (
-                  <div className="p-4 border border-border rounded-3xl bg-card/30">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-light text-muted-foreground">You will send</span>
-                      <span className="text-lg font-light text-foreground">{sendAmount} {selectedToken.symbol}</span>
+                  <div className="p-3 border border-border rounded-xl bg-card/30">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="font-light text-muted-foreground">Sending:</span>
+                      <span className="font-light text-foreground">{sendAmount} {selectedToken.symbol}</span>
                     </div>
-                    <div className="h-px bg-border mb-2"></div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-light text-muted-foreground">To</span>
-                      <span className="text-sm font-light text-foreground font-mono break-all">
-                        {resolvedAddress}
+                    <div className="flex justify-between items-center text-xs mt-1">
+                      <span className="font-light text-muted-foreground">To:</span>
+                      <span className="font-light text-foreground font-mono truncate max-w-[200px]" title={resolvedAddress}>
+                        {resolvedAddress.slice(0, 6)}...{resolvedAddress.slice(-4)}
                       </span>
                     </div>
                   </div>
@@ -1440,7 +1679,9 @@ export default function VaultDeposit() {
                     setRecipientInput('')
                     setSendAmount('')
                     setResolvedAddress(null)
-                    setEnsTextRecords({})
+                    setUserProfile(null)
+                    setEnsTextRecords([])
+                    setEnsSubname(null)
                     setError(null)
                   }}
                   className="rounded-full font-light h-12 px-8 text-sm"
