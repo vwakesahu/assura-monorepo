@@ -88,6 +88,8 @@ For users, Assura generates attested tax reports that summarize all activity per
 ## How It's Made
 
 ### Architecture Overview
+<img width="990" height="518" alt="telegram-cloud-document-5-6131949770849131872" src="https://github.com/user-attachments/assets/85f8fd8a-7398-4621-9d5d-d682db9016d1" />
+
 
 The Assura system consists of three main components:
 
