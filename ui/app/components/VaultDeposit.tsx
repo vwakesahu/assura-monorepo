@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { Check, Send } from 'lucide-react'
 import { CustomConnectButton } from './CustomConnectButton'
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient } from 'wagmi'
-import { formatUnits, parseUnits, createPublicClient, http, keccak256, toBytes, pad } from 'viem'
+import { formatUnits, parseUnits, createPublicClient, http, keccak256, toBytes, slice } from 'viem'
 import { mainnet } from 'viem/chains'
 import { useDebounce } from 'use-debounce'
 import { Button } from './ui/button'
@@ -456,15 +456,24 @@ export default function VaultDeposit() {
         throw new Error('Public client not available')
       }
 
-      // Calculate selector directly: bytes32(bytes4(keccak256("onlyUserWithScore100()")))
-      // This matches the contract's getOnlyUserWithScore100Selector() function
-      const functionSignature = 'onlyUserWithScore100()'
+      // Calculate selector directly: bytes32(bytes4(keccak256("onlyUserWithScore20()")))
+      // This matches the contract's getOnlyUserWithScore20Selector() function
+      // Used as key for depositWithScore100 function
+      // In Solidity: bytes32(bytes4(keccak256("onlyUserWithScore20()")))
+      // This takes first 4 bytes of hash and pads to 32 bytes on the right
+      const functionSignature = 'onlyUserWithScore20()'
       const hash = keccak256(toBytes(functionSignature))
-      // Take first 4 bytes (function selector) and pad to 32 bytes
-      const selectorBytes = hash.slice(0, 10) // 0x + 8 hex chars = 4 bytes
-      const depositSelector = pad(selectorBytes as `0x${string}`, { size: 32 }) as `0x${string}`
+      // Take first 4 bytes (function selector)
+      const selector4Bytes = slice(hash, 0, 4)
+      // Pad to 32 bytes: take the 4 bytes and add 28 zero bytes after
+      // This matches Solidity's bytes32(bytes4(...)) which pads on the right
+      const selectorHex = selector4Bytes.slice(2) // Remove 0x prefix
+      const depositSelector = (`0x${selectorHex}${'0'.repeat(56)}`) as `0x${string}` // 56 hex chars = 28 bytes
 
-      console.log('depositSelector', depositSelector)
+      console.log('Function signature:', functionSignature)
+      console.log('Hash:', hash)
+      console.log('4-byte selector:', selector4Bytes)
+      console.log('32-byte selector (padded):', depositSelector)
 
       // Check and handle token approval
       const tokenAddress = selectedToken.address as `0x${string}`
