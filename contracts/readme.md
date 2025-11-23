@@ -239,14 +239,53 @@ For more information on Hardhat 3 Solidity testing, see the [official documentat
 
 ## Deployment
 
-### Deploy AssuraVerifier
+### Multichain Deployment Setup
 
-1. Deploy `AssuraVerifier` with:
-   - Owner address (can update TEE address)
-   - TEE address (signs attestations)
+The project supports deployment to multiple networks: **Sepolia** and **Base Sepolia**.
 
-```solidity
-AssuraVerifier verifier = new AssuraVerifier(owner, teeAddress);
+#### Environment Variables Required
+
+Create a `.env` file in the `contracts/` directory with the following variables:
+
+```bash
+# Network RPC URLs
+SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
+# Or use Alchemy: https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY
+BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+
+# Private Keys (for deployment)
+# WARNING: Never commit your private keys to version control!
+SEPOLIA_PRIVATE_KEY=your_sepolia_private_key_here
+BASE_SEPOLIA_PRIVATE_KEY=your_base_sepolia_private_key_here
+
+# Deployment Parameters
+OWNER_ADDRESS=0x0000000000000000000000000000000000000000
+TEE_ADDRESS=0x0000000000000000000000000000000000000000
+```
+
+#### Deploy to All Networks
+
+Deploy `AssuraVerifier` to both Sepolia and Base Sepolia:
+
+```bash
+cd contracts
+OWNER_ADDRESS=0x... TEE_ADDRESS=0x... ./scripts/deploy-all-networks.sh
+```
+
+#### Deploy to Individual Networks
+
+Deploy to a specific network:
+
+```bash
+# Deploy to Sepolia
+npx hardhat ignition deploy ignition/modules/AssuraVerifier.ts \
+  --network sepolia \
+  --parameters '{"AssuraVerifierModule":{"owner":"0x...","teeAddress":"0x..."}}'
+
+# Deploy to Base Sepolia
+npx hardhat ignition deploy ignition/modules/AssuraVerifier.ts \
+  --network baseSepolia \
+  --parameters '{"AssuraVerifierModule":{"owner":"0x...","teeAddress":"0x..."}}'
 ```
 
 ### Deploy Application Contract
@@ -258,6 +297,41 @@ Counter counter = new Counter(address(verifier));
 ```
 
 2. The constructor automatically sets verification requirements
+
+### End-to-End Testing on Base Sepolia
+
+Run the complete end-to-end test suite on Base Sepolia:
+
+```bash
+# Make sure you have all required environment variables set
+npx hardhat test test/e2e-base-sepolia.ts --network baseSepolia
+```
+
+**Required Environment Variables for E2E Test:**
+
+```bash
+# Network configuration (already set for deployment)
+BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+BASE_SEPOLIA_PRIVATE_KEY=your_deployer_private_key
+
+# Test-specific variables
+OWNER_ADDRESS=0x...                    # Owner of AssuraVerifier
+TEE_ADDRESS=0x...                     # TEE address (must match TEE_PRIVATE_KEY)
+TEE_PRIVATE_KEY=0x...                 # Private key for signing attestations
+USER_PRIVATE_KEY=0x...                # Optional: User account for testing (defaults to deployer)
+```
+
+The E2E test will:
+1. Deploy `AssuraVerifier` contract
+2. Deploy `Counter` contract
+3. Verify contract setup and configuration
+4. Test `inc()` with EIP-712 signatures
+5. Test `incBy()` with EIP-712 signatures
+6. Test `inc()` with EIP-191 signatures (backward compatibility)
+7. Test failure cases (insufficient score, wrong signature)
+8. Verify final contract state
+
+**Note:** Make sure your accounts have sufficient Base Sepolia ETH for gas fees.
 
 ## Integration Guide
 
