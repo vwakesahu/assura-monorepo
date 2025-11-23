@@ -9,9 +9,9 @@ export const TEE_SERVICE_URL = "https://tee.assura.network";
 export const CONTRACT_ADDRESSES = {
   // AssuraVerifier deployed address
   ASSURA_VERIFIER:
-    "0x127a6e6c3922e7619cce2899588ba3220637ceac" as `0x${string}`,
+    "0xab9f034111017a5e9ad454848059df1752b8c0dc" as `0x${string}`,
   // AssuraProtectedVault deployed address
-  VAULT: "0xf1e3d42bbd65097fe49c62a6600976edd6b797f5" as `0x${string}`,
+  VAULT: "0x836ce296438bdf70d94a08fc6663ef5203178546" as `0x${string}`,
 } as const;
 
 // Image paths
@@ -34,7 +34,7 @@ export const TOKENS = [
     image: IMAGE_PATHS.tokens.usdc,
     available: true,
     // address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
-    address: "0x7a783231c6749f803b2f56a0a106e303cc677e0d", // MOCK USDC
+    address: "0xbb1e663898dd0212ec005def1d4ef98df3e914a0", // MOCK USDC
     decimals: 6,
   },
   {
