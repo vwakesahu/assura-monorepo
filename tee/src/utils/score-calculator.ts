@@ -165,23 +165,67 @@ async function fetchTransactionData(address: string, network: string = 'ethereum
 
 /**
  * Fetch comprehensive wallet data using CryptoAPIs
+ * Note: CryptoAPIs free tier primarily supports Ethereum mainnet.
+ * For testnets like Base Sepolia, we fall back to RPC.
  */
-async function fetchWalletData(address: string): Promise<WalletData> {
-  // Try mainnet first, fallback to testnet if needed
+async function fetchWalletData(address: string, chainId: number = 1): Promise<WalletData> {
+  // Determine network and blockchain from chainId
+  let network = 'ethereum';
+  let blockchain = 'mainnet';
+
+  // Map common chain IDs
+  // For testnets, we'll skip CryptoAPIs and go straight to RPC fallback
+  const isTestnet = [11155111, 84532, 421614, 80002].includes(chainId); // Sepolia, Base Sepolia, Arb Sepolia, Amoy
+
+  if (!isTestnet) {
+    switch (chainId) {
+      case 1: // Ethereum Mainnet
+        network = 'ethereum';
+        blockchain = 'mainnet';
+        break;
+      case 8453: // Base Mainnet
+        network = 'base';
+        blockchain = 'mainnet';
+        break;
+      case 42161: // Arbitrum One
+        network = 'arbitrum-one';
+        blockchain = 'mainnet';
+        break;
+      case 137: // Polygon
+        network = 'polygon';
+        blockchain = 'mainnet';
+        break;
+      default:
+        // Unknown mainnet, try ethereum mainnet
+        network = 'ethereum';
+        blockchain = 'mainnet';
+    }
+  }
+
   let balance = 0;
   let txData = { count: 0, volumeETH: 0, firstTxDate: null as Date | null };
 
-  try {
-    // Try Ethereum mainnet
-    [balance, txData] = await Promise.all([
-      fetchWalletBalance(address, 'ethereum', 'mainnet'),
-      fetchTransactionData(address, 'ethereum', 'mainnet'),
-    ]);
-  } catch (error: any) {
-    console.error('Failed to fetch from Ethereum mainnet:', error.message);
+  // Skip CryptoAPIs for testnets (they typically don't have good testnet support)
+  if (isTestnet) {
+    console.log(`⚠️  Testnet detected (chainId: ${chainId}), skipping CryptoAPIs and using RPC fallback`);
+    return fetchWalletDataFallback(address, chainId);
+  }
 
-    // If mainnet fails, the individual functions already returned defaults
-    // We can also try Base or other chains here if needed
+  try {
+    // Try fetching from CryptoAPIs
+    [balance, txData] = await Promise.all([
+      fetchWalletBalance(address, network, blockchain),
+      fetchTransactionData(address, network, blockchain),
+    ]);
+
+    // If no data returned, use fallback
+    if (balance === 0 && txData.count === 0) {
+      console.log(`⚠️  No data from CryptoAPIs for ${address}, using RPC fallback`);
+      return fetchWalletDataFallback(address, chainId);
+    }
+  } catch (error: any) {
+    console.error(`Failed to fetch from CryptoAPIs (${network}/${blockchain}):`, error.message);
+    return fetchWalletDataFallback(address, chainId);
   }
 
   // Calculate wallet age
@@ -201,17 +245,55 @@ async function fetchWalletData(address: string): Promise<WalletData> {
 }
 
 /**
- * Fallback: Get wallet data from local RPC (Base Sepolia)
- * Used if CryptoAPIs fails
+ * Fallback: Get wallet data from local RPC
+ * Used if CryptoAPIs fails or for testnets
  */
-async function fetchWalletDataFallback(address: string): Promise<WalletData> {
+async function fetchWalletDataFallback(address: string, chainId: number = 84532): Promise<WalletData> {
   try {
     const { createPublicClient, http } = await import('viem');
-    const { baseSepolia } = await import('viem/chains');
+    const { baseSepolia, sepolia, arbitrumSepolia, mainnet, base, arbitrum, polygon } = await import('viem/chains');
 
-    const rpcUrl = process.env.RPC_URL || 'https://sepolia.base.org';
+    // Map chainId to chain config and RPC URL
+    let chain;
+    let rpcUrl;
+
+    switch (chainId) {
+      case 84532: // Base Sepolia
+        chain = baseSepolia;
+        rpcUrl = process.env.RPC_URL || 'https://sepolia.base.org';
+        break;
+      case 11155111: // Ethereum Sepolia
+        chain = sepolia;
+        rpcUrl = 'https://rpc.sepolia.org';
+        break;
+      case 421614: // Arbitrum Sepolia
+        chain = arbitrumSepolia;
+        rpcUrl = 'https://sepolia-rollup.arbitrum.io/rpc';
+        break;
+      case 1: // Ethereum Mainnet
+        chain = mainnet;
+        rpcUrl = process.env.RPC_URL || 'https://eth.llamarpc.com';
+        break;
+      case 8453: // Base Mainnet
+        chain = base;
+        rpcUrl = 'https://mainnet.base.org';
+        break;
+      case 42161: // Arbitrum One
+        chain = arbitrum;
+        rpcUrl = 'https://arb1.arbitrum.io/rpc';
+        break;
+      case 137: // Polygon
+        chain = polygon;
+        rpcUrl = 'https://polygon-rpc.com';
+        break;
+      default:
+        // Default to Base Sepolia
+        chain = baseSepolia;
+        rpcUrl = process.env.RPC_URL || 'https://sepolia.base.org';
+    }
+
     const publicClient = createPublicClient({
-      chain: baseSepolia,
+      chain,
       transport: http(rpcUrl),
     });
 
@@ -255,12 +337,14 @@ async function fetchWalletDataFallback(address: string): Promise<WalletData> {
  * @param userAddress Ethereum address
  * @param aKYC Whether user has advanced KYC
  * @param eKYC Whether user has electronic KYC
+ * @param chainId Chain ID to determine which network to query
  * @returns Compliance score (0-1000)
  */
 export async function calculateComplianceScore(
   userAddress: string,
   aKYC: boolean,
-  eKYC: boolean
+  eKYC: boolean,
+  chainId: number = 84532
 ): Promise<{
   totalScore: number;
   breakdown: {
@@ -285,17 +369,17 @@ export async function calculateComplianceScore(
   let dataSource: 'cryptoapis' | 'rpc-fallback' = 'cryptoapis';
 
   try {
-    walletData = await fetchWalletData(userAddress);
+    walletData = await fetchWalletData(userAddress, chainId);
 
     // If CryptoAPIs returned no data, use fallback
     if (walletData.balance === 0 && walletData.transactionCount === 0) {
       console.log('CryptoAPIs returned no data, using RPC fallback');
-      walletData = await fetchWalletDataFallback(userAddress);
+      walletData = await fetchWalletDataFallback(userAddress, chainId);
       dataSource = 'rpc-fallback';
     }
   } catch (error: any) {
     console.error('Failed to fetch wallet data, using RPC fallback:', error.message);
-    walletData = await fetchWalletDataFallback(userAddress);
+    walletData = await fetchWalletDataFallback(userAddress, chainId);
     dataSource = 'rpc-fallback';
   }
 
@@ -346,7 +430,7 @@ export async function calculateComplianceScore(
 /**
  * Calculate score for new users (no aKYC/eKYC yet)
  */
-export async function calculateInitialScore(userAddress: string): Promise<{
+export async function calculateInitialScore(userAddress: string, chainId: number = 84532): Promise<{
   totalScore: number;
   breakdown: {
     aKYCScore: number;
@@ -366,5 +450,5 @@ export async function calculateInitialScore(userAddress: string): Promise<{
   };
 }> {
   // New users start with aKYC=false, eKYC=false
-  return calculateComplianceScore(userAddress, false, false);
+  return calculateComplianceScore(userAddress, false, false, chainId);
 }

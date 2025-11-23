@@ -287,12 +287,15 @@ app.post('/attest', async (req: Request, res: Response) => {
       }
     }
 
+    // Use provided chain ID or default from environment
+    const chainId = requestChainId || parseInt(process.env.CHAIN_ID || '84532', 10);
+
     // Calculate compliance score based on wallet metrics and KYC status
     // For existing users, use their KYC status; for new users, start with false/false
     const aKYCStatus = existingProfile?.aKYC ?? false;
     const eKYCStatus = existingProfile?.eKYC ?? false;
 
-    const scoreCalculation = await calculateComplianceScore(userAddress, aKYCStatus, eKYCStatus);
+    const scoreCalculation = await calculateComplianceScore(userAddress, aKYCStatus, eKYCStatus, chainId);
     const score = scoreCalculation.totalScore;
 
     console.log(`📊 Score calculated for ${userAddress}:`);
@@ -302,9 +305,6 @@ app.post('/attest', async (req: Request, res: Response) => {
 
     // Get current timestamp
     const timeAtWhichAttested = Math.floor(Date.now() / 1000);
-
-    // Use provided chain ID or default from environment
-    const chainId = requestChainId || parseInt(process.env.CHAIN_ID || '84532', 10);
 
     // Create attested data structure
     const attestedData = {
@@ -580,8 +580,11 @@ app.post('/register', async (req: Request, res: Response) => {
       });
     }
 
+    // Get chain ID from environment
+    const chainId = parseInt(process.env.CHAIN_ID || '84532', 10);
+
     // Calculate initial compliance score (new users start with aKYC=false, eKYC=false)
-    const scoreCalculation = await calculateInitialScore(userAddress);
+    const scoreCalculation = await calculateInitialScore(userAddress, chainId);
     const score = scoreCalculation.totalScore;
 
     console.log(`📊 Initial score calculated for new user ${userAddress}:`);
@@ -591,7 +594,6 @@ app.post('/register', async (req: Request, res: Response) => {
 
     // Get current timestamp
     const timeAtWhichAttested = Math.floor(Date.now() / 1000);
-    const chainId = parseInt(process.env.CHAIN_ID || '84532', 10);
 
     // Create attested data and signature
     const attestedData = {
