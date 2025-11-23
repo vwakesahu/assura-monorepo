@@ -18,5 +18,7 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
-  "registries": {}
+  "registries": {
+    "@aevr": "https://v1.ui.aevr.space/r/{name}.json"
+  }
 }
