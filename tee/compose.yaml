@@ -17,6 +17,7 @@ services:
       - KEY_ID=evm:base:sepolia
       - RPC_URL=https://sepolia.base.org
       - CHAIN_ID=84532
+      - CRYPTO_API_KEY=d58cb0892f9fbf34815230e5066ee411f45ec259
     annotations:
       # Proxy configuration - Custom domain support
       # DNS Setup Required:

@@ -119,6 +119,24 @@ export async function getAttestation(
       throw new Error(`User not registered. Please provide a username to register first. Call getAttestation with username parameter.`);
     }
 
+    // Handle 409 Conflict - user already registered
+    if (error.response?.status === 409 && username) {
+      console.log(`ℹ️  User already registered, fetching existing profile...`);
+      // Retry without username to get existing profile
+      const retryResponse = await retryRequest(async () => {
+        return await axios.post(`${url}/attest`, {
+          userAddress,
+          chainId: chainId || 84532,
+        }, axiosConfig);
+      });
+
+      if (!retryResponse.data || !retryResponse.data.attestedData || !retryResponse.data.signature) {
+        throw new Error("Invalid response from TEE service");
+      }
+
+      return retryResponse.data;
+    }
+
     throw new Error(`Failed to get attestation: ${error.message}`);
   }
 }

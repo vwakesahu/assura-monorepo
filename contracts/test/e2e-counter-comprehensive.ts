@@ -673,7 +673,7 @@ describe("Comprehensive Counter E2E Tests on Base Sepolia", async function () {
 
   // ============ Bypass Functionality Tests ============
 
-  it("Should create bypass entry when score is insufficient", async function () {
+  it("Should create bypass entry when score is insufficient", async function (this: { skip: () => void }) {
     console.log("\n=== Testing bypass entry creation ===");
 
     const key = await (counterContract.read as any).getOnlyUserWithScore100Selector();
@@ -781,7 +781,7 @@ describe("Comprehensive Counter E2E Tests on Base Sepolia", async function () {
     console.log(`  Nonce: ${bypassEntry.nonce}`);
   });
 
-  it("Should increment bypass entry nonce on subsequent attempts", async function () {
+  it("Should increment bypass entry nonce on subsequent attempts", async function (this: { skip: () => void }) {
     console.log("\n=== Testing bypass nonce increment ===");
 
     const key = await (counterContract.read as any).getOnlyUserWithScore100Selector();
@@ -929,7 +929,7 @@ describe("Comprehensive Counter E2E Tests on Base Sepolia", async function () {
     console.log(`✓ Bypass nonce incremented from 1 to ${bypassEntry.nonce}`);
   });
 
-  it("Should calculate bypass expiry correctly for different score differences", async function () {
+  it("Should calculate bypass expiry correctly for different score differences", async function (this: { skip: () => void }) {
     console.log("\n=== Testing bypass expiry calculation ===");
 
     // Test with score 80 (difference = 20, expiry = 200 seconds)
@@ -1087,7 +1087,7 @@ describe("Comprehensive Counter E2E Tests on Base Sepolia", async function () {
     console.log(`✓ Score 30: Expiry = ${bypassEntry2.expiry} (diff from current: ${expiryDiff2} seconds)`);
   });
 
-  it("Should allow access after bypass expiry", async function () {
+  it("Should allow access after bypass expiry", async function (this: { skip: () => void }) {
     console.log("\n=== Testing bypass expiry access ===");
 
     const key = await (counterContract.read as any).getOnlyUserWithScore100Selector();
