@@ -1,0 +1,18 @@
+[profile.default]
+src = "contracts"
+out = "artifacts/foundry"
+libs = ["node_modules"]
+remappings = [
+    "bcnmy-nexus/=node_modules/bcnmy-nexus/",
+    "solady/=node_modules/solady/src/",
+    "sentinellist/=node_modules/@rhinestone/sentinellist/src/",
+    "account-abstraction/=node_modules/accountabstraction/contracts/",
+    "excessively-safe-call/=node_modules/@nomad-xyz/excessively-safe-call/src/",
+    "forge-std/=node_modules/forge-std/src/",
+    "solarray/=node_modules/solarray/src/",
+    "erc7579/=node_modules/erc7579-implementation/src/"
+]
+solc_version = "0.8.28"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
