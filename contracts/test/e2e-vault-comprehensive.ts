@@ -391,12 +391,11 @@ describe("Comprehensive Vault E2E Tests on Base Sepolia", async function () {
     // Verify deployment with retries
     let verifier: `0x${string}` | undefined;
     let key: `0x${string}` | undefined;
-    let score: bigint | undefined;
     for (let i = 0; i < 5; i++) {
       try {
         verifier = await (vaultContract as any).read.assuraVerifier();
         key = await (vaultContract as any).read.verificationKey();
-        if (verifier && key && score !== undefined) break;
+        if (verifier && key) break;
       } catch (error) {
         if (i === 4) throw error;
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -405,7 +404,6 @@ describe("Comprehensive Vault E2E Tests on Base Sepolia", async function () {
     
     assert.ok(verifier, "Verifier should be set");
     assert.ok(key, "Key should be set");
-    assert.ok(score !== undefined, "Score should be set");
     assert.equal(
       verifier!.toLowerCase(),
       assuraVerifierAddress.toLowerCase(),
@@ -415,7 +413,6 @@ describe("Comprehensive Vault E2E Tests on Base Sepolia", async function () {
 
     console.log(`✓ Vault verifier: ${verifier}`);
     console.log(`✓ Vault verification key: ${key}`);
-    console.log(`✓ Vault min score: ${score}`);
 
     // Get selectors from vault contract
     depositSelector = await (vaultContract.read as any).getOnlyUserWithScore100Selector();

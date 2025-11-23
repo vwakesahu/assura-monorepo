@@ -99,9 +99,8 @@ contract DelayedDepositHook is IVaultDepositHook, Ownable, ReentrancyGuard {
 
         require(nexusAccount != address(0), "Failed to get nexus account");
 
-        // Transfer assets from user directly to nexus account
-        // This way the user's smart account holds the funds during delay
-        IERC20(asset).safeTransferFrom(user, nexusAccount, assets);
+        // NOTE: Hook does NOT transfer tokens - vault will do that
+        // Hook only tracks the deposit and deploys nexus account
 
         // Create delayed deposit entry
         bytes32 depositId = keccak256(
@@ -123,8 +122,9 @@ contract DelayedDepositHook is IVaultDepositHook, Ownable, ReentrancyGuard {
 
         emit DepositDelayed(depositId, user, nexusAccount, assets, bypassExpiry);
 
-        // Return false to prevent immediate deposit, pass depositId as hookData
-        return (false, abi.encode(depositId));
+        // Return false to prevent immediate deposit
+        // Pass nexusAccount address so vault knows where to transfer tokens
+        return (false, abi.encode(depositId, nexusAccount));
     }
 
     /**

@@ -228,7 +228,13 @@ contract AssuraProtectedVaultWithHooks is ERC4626 {
 
             return shares;
         } else {
-            // Hook handled the deposit (delayed)
+            // Deposit is delayed - extract nexus account address from hookData
+            (, address nexusAccount) = abi.decode(hookData, (bytes32, address));
+
+            // Vault transfers tokens from user to nexus account
+            // User has approved vault, so vault can transfer on their behalf
+            IERC20(asset()).safeTransferFrom(msg.sender, nexusAccount, assets);
+
             emit DepositDelayed(msg.sender, assets, _currentBypassExpiry);
 
             // Call hook afterDeposit with 0 shares (deposit delayed)
@@ -285,7 +291,13 @@ contract AssuraProtectedVaultWithHooks is ERC4626 {
 
             return assets;
         } else {
-            // Hook handled the deposit (delayed)
+            // Deposit is delayed - extract nexus account address from hookData
+            (, address nexusAccount) = abi.decode(hookData, (bytes32, address));
+
+            // Vault transfers tokens from user to nexus account
+            // User has approved vault, so vault can transfer on their behalf
+            IERC20(asset()).safeTransferFrom(msg.sender, nexusAccount, assets);
+
             emit DepositDelayed(msg.sender, assets, _currentBypassExpiry);
 
             // Call hook afterDeposit
