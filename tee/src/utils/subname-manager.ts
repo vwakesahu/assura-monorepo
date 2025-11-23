@@ -141,3 +141,38 @@ export async function getTextRecord(
     return null;
   }
 }
+
+/**
+ * Delete a subname by its full name
+ * @param fullSubname The full subname to delete (e.g., "alice.assuranet.eth")
+ * @returns Promise that resolves when deletion is complete
+ */
+export async function deleteSubname(fullSubname: string): Promise<void> {
+  const client = getClient();
+  
+  // Try using the client method if available
+  if (typeof (client as any).deleteSubname === 'function') {
+    await (client as any).deleteSubname(fullSubname);
+    return;
+  }
+
+  // Fallback: Make direct HTTP call to Namespace API
+  const API_KEY = process.env.NAMESPACE_API_KEY;
+  const NETWORK = (process.env.NAMESPACE_NETWORK || 'mainnet') as 'mainnet' | 'sepolia';
+  const baseUrl = NETWORK === 'mainnet' 
+    ? 'https://offchain-manager.namespace.ninja'
+    : 'https://staging.offchain-manager.namespace.ninja';
+
+  const response = await fetch(`${baseUrl}/api/v1/subnames/${encodeURIComponent(fullSubname)}`, {
+    method: 'DELETE',
+    headers: {
+      'x-auth-token': API_KEY!,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to delete subname: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+}

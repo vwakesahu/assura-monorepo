@@ -365,18 +365,16 @@ describe("Comprehensive Vault E2E Tests on Base Sepolia", async function () {
   it("Should deploy AssuraProtectedVault contract", async function () {
     console.log("\n=== Deploying AssuraProtectedVault ===");
 
-    // Use a placeholder verification key and minScore for constructor
+    // Use a placeholder verification key for constructor
     // The actual verifying data will be set using selectors
     const verificationKey = keccak256(toBytes("AssuraProtectedVault"));
-    const minScore = 50n;
 
     const vault = await viem.deployContract("AssuraProtectedVault", [
       mockERC20Address,
       "Assura Protected Vault",
       "APV",
       assuraVerifierAddress,
-      verificationKey,
-      minScore,
+      verificationKey
     ]);
 
     vaultAddress = vault.address;
@@ -398,7 +396,6 @@ describe("Comprehensive Vault E2E Tests on Base Sepolia", async function () {
       try {
         verifier = await (vaultContract as any).read.assuraVerifier();
         key = await (vaultContract as any).read.verificationKey();
-        score = await (vaultContract as any).read.minScore();
         if (verifier && key && score !== undefined) break;
       } catch (error) {
         if (i === 4) throw error;
@@ -415,7 +412,6 @@ describe("Comprehensive Vault E2E Tests on Base Sepolia", async function () {
       "Vault should have correct AssuraVerifier"
     );
     assert.equal(key, verificationKey, "Vault should have correct verification key");
-    assert.equal(score, minScore, "Vault should have correct min score");
 
     console.log(`✓ Vault verifier: ${verifier}`);
     console.log(`✓ Vault verification key: ${key}`);

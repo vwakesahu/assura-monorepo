@@ -251,3 +251,57 @@ export function getAllProfiles(): UserProfile[] {
   const storage = loadUserStorage();
   return Object.values(storage.profiles);
 }
+
+/**
+ * Delete a user profile and all associated data
+ * @param username The username to delete
+ * @returns The deleted profile, or null if not found
+ */
+export function deleteUserProfile(username: string): UserProfile | null {
+  const storage = loadUserStorage();
+  const usernameLower = username.toLowerCase();
+
+  const profile = storage.profiles[usernameLower];
+  if (!profile) {
+    return null;
+  }
+
+  const addressLower = profile.userAddress.toLowerCase();
+
+  // Delete profile
+  delete storage.profiles[usernameLower];
+
+  // Delete address mapping
+  delete storage.addressToUsername[addressLower];
+
+  // Delete all attestations for this user
+  if (storage.attestations[addressLower]) {
+    const attestationCount = storage.attestations[addressLower].length;
+    delete storage.attestations[addressLower];
+    storage.metadata.totalAttestations -= attestationCount;
+  }
+
+  // Update metadata
+  storage.metadata.totalProfiles--;
+
+  saveUserStorage(storage);
+
+  return profile;
+}
+
+/**
+ * Delete user by address
+ * @param userAddress The user address to delete
+ * @returns The deleted profile, or null if not found
+ */
+export function deleteUserByAddress(userAddress: string): UserProfile | null {
+  const storage = loadUserStorage();
+  const addressLower = userAddress.toLowerCase();
+
+  const username = storage.addressToUsername[addressLower];
+  if (!username) {
+    return null;
+  }
+
+  return deleteUserProfile(username);
+}

@@ -20,9 +20,6 @@ contract AssuraProtectedVault is ERC4626 {
     /// @dev The verification key for this vault
     bytes32 public immutable verificationKey;
     
-    /// @dev Minimum required confidence score
-    uint256 public immutable minScore;
-    
     /// @dev Emitted when compliance is verified
     event ComplianceVerified(address indexed user, uint256 score);
 
@@ -63,22 +60,18 @@ contract AssuraProtectedVault is ERC4626 {
      * @param symbol_ The vault token symbol
      * @param _assuraVerifier The Assura verifier contract address
      * @param _verificationKey The verification key for this vault
-     * @param _minScore Minimum required confidence score
      */
     constructor(
         IERC20 asset_,
         string memory name_,
         string memory symbol_,
         IAssuraVerifier _assuraVerifier,
-        bytes32 _verificationKey,
-        uint256 _minScore
+        bytes32 _verificationKey
     ) ERC4626(asset_) ERC20(name_, symbol_) {
         require(address(_assuraVerifier) != address(0), "Vault: verifier cannot be zero");
-        require(_minScore > 0, "Vault: min score must be > 0");
         
         assuraVerifier = _assuraVerifier;
         verificationKey = _verificationKey;
-        minScore = _minScore;
         
         // Set verifying data for this contract's functions
         assuraVerifier.setVerifyingData(
@@ -215,7 +208,6 @@ contract AssuraProtectedVault is ERC4626 {
         uint256 expiry,
         uint256 chainId
     ) external {
-        require(newScore >= minScore, "Vault: Cannot lower below initial min score");
         
         AssuraTypes.VerifyingData memory verifyingData = AssuraTypes.VerifyingData({
             score: newScore,
