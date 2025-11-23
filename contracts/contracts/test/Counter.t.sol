@@ -106,19 +106,18 @@ contract CounterTest is Test {
 
     function test_VerifyingDataSet() public view {
         // Check that verifying data was set correctly in constructor
-        bytes4 incSelector = counter.inc.selector;
-        bytes4 incBySelector = counter.incBy.selector;
+        bytes32 incSelector = counter.getOnlyUserWithScore100Selector();
+        bytes32 incBySelector = counter.getOnlyUserWithScore30Selector();
         
-        AssuraTypes.VerifyingData memory vData1 = assuraVerifier.getVerifyingData(address(counter), bytes32(incSelector));
+        AssuraTypes.VerifyingData memory vData1 = assuraVerifier.getVerifyingData(address(counter), incSelector);
         assertEq(vData1.score, 100, "inc() should require score 100");
         
-        AssuraTypes.VerifyingData memory vData2 = assuraVerifier.getVerifyingData(address(counter), bytes32(incBySelector));
+        AssuraTypes.VerifyingData memory vData2 = assuraVerifier.getVerifyingData(address(counter), incBySelector);
         assertEq(vData2.score, 30, "incBy() should require score 30");
     }
 
     function test_IncWithValidComplianceData() public {
-        bytes4 selector = counter.inc.selector;
-        bytes32 key = bytes32(selector);
+        bytes32 key = counter.getOnlyUserWithScore100Selector();
         
         // Create ActualAttestedData with score 100 (required for inc)
         AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
@@ -150,8 +149,7 @@ contract CounterTest is Test {
     }
 
     function test_IncByWithValidComplianceData() public {
-        bytes4 selector = counter.incBy.selector;
-        bytes32 key = bytes32(selector);
+        bytes32 key = counter.getOnlyUserWithScore30Selector();
         
         // Create ActualAttestedData with score 30 (required for incBy)
         AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
@@ -183,8 +181,7 @@ contract CounterTest is Test {
     }
 
     function test_IncFailsWithInsufficientScore() public {
-        bytes4 selector = counter.inc.selector;
-        bytes32 key = bytes32(selector);
+        bytes32 key = counter.getOnlyUserWithScore100Selector();
         
         // Create ActualAttestedData with score 50 (less than required 100)
         AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
@@ -214,8 +211,7 @@ contract CounterTest is Test {
     }
 
     function test_IncFailsWithWrongSignature() public {
-        bytes4 selector = counter.inc.selector;
-        bytes32 key = bytes32(selector);
+        bytes32 key = counter.getOnlyUserWithScore100Selector();
         
         // Create ActualAttestedData with score 100
         AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
@@ -245,8 +241,7 @@ contract CounterTest is Test {
     }
 
     function test_IncFailsWithWrongKey() public {
-        bytes4 selector = counter.incBy.selector; // Wrong selector for inc()
-        bytes32 key = bytes32(selector);
+        bytes32 key = counter.getOnlyUserWithScore30Selector(); // Wrong selector for inc()
         
         // Create ActualAttestedData with score 100
         AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
@@ -276,8 +271,7 @@ contract CounterTest is Test {
     }
 
     function test_IncByZero() public {
-        bytes4 selector = counter.incBy.selector;
-        bytes32 key = bytes32(selector);
+        bytes32 key = counter.getOnlyUserWithScore30Selector();
         
         // Create ActualAttestedData with score 30
         AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
@@ -307,8 +301,7 @@ contract CounterTest is Test {
     }
 
     function test_MultipleIncrements() public {
-        bytes4 selector = counter.inc.selector;
-        bytes32 key = bytes32(selector);
+        bytes32 key = counter.getOnlyUserWithScore100Selector();
         
         // Create ActualAttestedData with score 100
         AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
@@ -346,8 +339,7 @@ contract CounterTest is Test {
     // ============ EIP-712 Signature Tests ============
 
     function test_IncWithEIP712Signature() public {
-        bytes4 selector = counter.inc.selector;
-        bytes32 key = bytes32(selector);
+        bytes32 key = counter.getOnlyUserWithScore100Selector();
         
         // Create ActualAttestedData with score 100 (required for inc)
         AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
@@ -379,8 +371,7 @@ contract CounterTest is Test {
     }
 
     function test_IncByWithEIP712Signature() public {
-        bytes4 selector = counter.incBy.selector;
-        bytes32 key = bytes32(selector);
+        bytes32 key = counter.getOnlyUserWithScore30Selector();
         
         // Create ActualAttestedData with score 30 (required for incBy)
         AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
@@ -412,8 +403,7 @@ contract CounterTest is Test {
     }
 
     function test_EIP712SignatureFailsWithWrongSigner() public {
-        bytes4 selector = counter.inc.selector;
-        bytes32 key = bytes32(selector);
+        bytes32 key = counter.getOnlyUserWithScore100Selector();
         
         // Create ActualAttestedData with score 100
         AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({
@@ -443,8 +433,7 @@ contract CounterTest is Test {
     }
 
     function test_BothEIP191AndEIP712Work() public {
-        bytes4 selector = counter.inc.selector;
-        bytes32 key = bytes32(selector);
+        bytes32 key = counter.getOnlyUserWithScore100Selector();
         
         // Create ActualAttestedData with score 100
         AssuraTypes.AttestedData memory attestedData = AssuraTypes.AttestedData({

@@ -19,12 +19,12 @@ contract Counter {
         return AssuraTypes.VerifyingData({score: 30, expiry: 0, chainId: 0});
     }
 
-    function _getIncSelector() internal pure returns (bytes32) {
-        return bytes32(this.inc.selector);
+    function getOnlyUserWithScore100Selector() public pure returns (bytes32) {
+        return bytes32(bytes4(keccak256("onlyUserWithScore100()")));
     }
 
-    function _getIncBySelector() internal pure returns (bytes32) {
-        return bytes32(this.incBy.selector);
+    function getOnlyUserWithScore30Selector() public pure returns (bytes32) {
+        return bytes32(bytes4(keccak256("onlyUserWithScore30()")));
     }
 
     constructor(address _assuraVerifier) {
@@ -34,13 +34,13 @@ contract Counter {
         // Set verifying data for this contract's functions
         assuraVerifier.setVerifyingData(
             address(this),
-            _getIncSelector(),
+            getOnlyUserWithScore100Selector(),
             onlyUserWithScore100()
         );
         
         assuraVerifier.setVerifyingData(
             address(this),
-            _getIncBySelector(),
+            getOnlyUserWithScore30Selector(),
             onlyUserWithScore30()
         );
     }
@@ -52,7 +52,7 @@ contract Counter {
 
     function inc(
         bytes calldata attestedData
-    ) public onlyComplianceUser(bytes32(this.inc.selector), attestedData) {
+    ) public onlyComplianceUser(getOnlyUserWithScore100Selector(), attestedData) {
         x++;
         emit Increment(1);
     }
@@ -60,7 +60,7 @@ contract Counter {
     function incBy(
         uint by,
         bytes calldata attestedData
-    ) public onlyComplianceUser(bytes32(this.incBy.selector), attestedData) {
+    ) public onlyComplianceUser(getOnlyUserWithScore30Selector(), attestedData) {
         require(by > 0, "incBy: increment should be positive");
         x += by;
         emit Increment(by);
