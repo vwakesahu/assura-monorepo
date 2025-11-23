@@ -4,7 +4,8 @@
   "type": "module",
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0",
-    "@openzeppelin/contracts-upgradeable": "^5.4.0"
+    "@openzeppelin/contracts-upgradeable": "^5.4.0",
+    "dotenv": "^17.2.3"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^3.0.5",
@@ -12,6 +13,7 @@
     "@types/node": "^22.8.5",
     "forge-std": "github:foundry-rs/forge-std#v1.9.4",
     "hardhat": "^3.0.15",
+    "tsx": "^4.20.6",
     "typescript": "~5.8.0",
     "viem": "^2.30.0"
   }

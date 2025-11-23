@@ -1,19 +1,22 @@
 services:
-  mycontainer:
+  app:
     build: .
-    image: "docker.io/0xswayam/my-app:latest"   # Always provide FQDN image names!
+    image: "docker.io/0xswayam/my-app:latest"
     platform: linux/amd64
     ports:
-      - "3000:3000"                              # Expose ENS resolver API
+      - "3000:3000" # Expose port 3000 for proxy access
     volumes:
-      - my-volume:/root/.my-volume              # Persistent per-machine storage.
-      - /run/rofl-appd.sock:/run/rofl-appd.sock # appd REST API.
+      - /run/rofl-appd.sock:/run/rofl-appd.sock
     environment:
       - PORT=3000
-      - DB_PATH=/root/.my-volume/database.db
-      - PRIVATE_KEY=${PRIVATE_KEY}              # Required: ENS resolver private key
-      - MY_SECRET_1=${MY_SECRET_1}              # See `oasis rofl secret` command.
-      - MY_SECRET_2=${MY_SECRET_2}
-
-volumes:
-  my-volume:
+      - NODE_ENV=production
+      - NAMESPACE_API_KEY=ns-e6d52ff6-4995-4bd7-b7b8-7ed7596c2a6e
+      - TEE_PRIVATE_KEY=0x7cf73cff18de223ccfc1188c034f639768a90fd628393d0538fdb54d62b64695
+      - NAMESPACE_NETWORK=mainnet
+    annotations:
+      # Proxy configuration - Custom domain support
+      # DNS Setup Required:
+      # 1. Create A record: tee.assura.network -> <machine-ip>
+      # 2. Create TXT record for domain verification (check deployment output)
+      net.oasis.proxy.ports.3000.mode: terminate-tls
+      net.oasis.proxy.ports.3000.custom_domain: tee.assura.network
