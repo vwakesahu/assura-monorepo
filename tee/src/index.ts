@@ -28,6 +28,8 @@ import {
   hasRegisteredUsername,
   getAllProfiles,
 } from './utils/user-storage';
+import { isSanctioned, getSanctionsStats, refreshSanctionsList } from './utils/sanctions-checker';
+import { calculateInitialScore, calculateComplianceScore } from './utils/score-calculator';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -128,6 +130,8 @@ app.get('/', (req: Request, res: Response) => {
       usernameAvailable: 'GET /username/:username/available',
       profiles: 'GET /profiles',
       updateCompliance: 'PUT /profile/:username/compliance',
+      sanctions: 'GET /sanctions/stats',
+      refreshSanctions: 'POST /sanctions/refresh',
       summarize: 'POST /summarize-doc',
       subnames: 'GET /subnames',
     },
@@ -225,6 +229,18 @@ app.post('/attest', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid Ethereum address format' });
     }
 
+    // Check if address is sanctioned
+    const sanctionInfo = await isSanctioned(userAddress);
+    if (sanctionInfo) {
+      console.log(`🚫 Sanctioned address blocked: ${userAddress} - Entity: ${sanctionInfo.entity}`);
+      return res.status(403).json({
+        error: 'Address is sanctioned and cannot receive attestation',
+        reason: 'SANCTIONED_ADDRESS',
+        entity: sanctionInfo.entity,
+        source: sanctionInfo.source,
+      });
+    }
+
     // Check if user is registered
     const isRegistered = hasRegisteredUsername(userAddress);
     const existingProfile = isRegistered ? getUserProfileByAddress(userAddress) : null;
@@ -271,13 +287,18 @@ app.post('/attest', async (req: Request, res: Response) => {
       }
     }
 
-    // Generate score inside TEE based on user address (deterministic for testing)
-    // In production, this would be replaced with actual compliance verification logic
-    const { keccak256: hashFn } = await import('viem');
-    const addressHash = hashFn(userAddress as `0x${string}`);
-    // Use last 4 bytes of hash to generate deterministic score (0-1000)
-    const hashValue = parseInt(addressHash.slice(-8), 16);
-    const score = hashValue % 1001;
+    // Calculate compliance score based on wallet metrics and KYC status
+    // For existing users, use their KYC status; for new users, start with false/false
+    const aKYCStatus = existingProfile?.aKYC ?? false;
+    const eKYCStatus = existingProfile?.eKYC ?? false;
+
+    const scoreCalculation = await calculateComplianceScore(userAddress, aKYCStatus, eKYCStatus);
+    const score = scoreCalculation.totalScore;
+
+    console.log(`📊 Score calculated for ${userAddress}:`);
+    console.log(`   Total: ${score}/1000`);
+    console.log(`   Breakdown: aKYC=${scoreCalculation.breakdown.aKYCScore}, eKYC=${scoreCalculation.breakdown.eKYCScore}, age=${scoreCalculation.breakdown.walletAgeScore}, balance=${scoreCalculation.breakdown.balanceScore}`);
+    console.log(`   Metadata: ${scoreCalculation.metadata.walletAgeDays} days old, ${scoreCalculation.metadata.walletBalanceETH} ETH`);
 
     // Get current timestamp
     const timeAtWhichAttested = Math.floor(Date.now() / 1000);
@@ -515,6 +536,18 @@ app.post('/register', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid Ethereum address format' });
     }
 
+    // Check if address is sanctioned
+    const sanctionInfo = await isSanctioned(userAddress);
+    if (sanctionInfo) {
+      console.log(`🚫 Sanctioned address blocked from registration: ${userAddress} - Entity: ${sanctionInfo.entity}`);
+      return res.status(403).json({
+        error: 'Address is sanctioned and cannot register',
+        reason: 'SANCTIONED_ADDRESS',
+        entity: sanctionInfo.entity,
+        source: sanctionInfo.source,
+      });
+    }
+
     // Validate username format (lowercase letters, numbers, hyphens only)
     const usernameLower = username.toLowerCase();
     if (!/^[a-z0-9-]+$/.test(usernameLower)) {
@@ -547,11 +580,14 @@ app.post('/register', async (req: Request, res: Response) => {
       });
     }
 
-    // Generate deterministic score based on user address
-    const { keccak256: hashFn } = await import('viem');
-    const addressHash = hashFn(userAddress as `0x${string}`);
-    const hashValue = parseInt(addressHash.slice(-8), 16);
-    const score = hashValue % 1001;
+    // Calculate initial compliance score (new users start with aKYC=false, eKYC=false)
+    const scoreCalculation = await calculateInitialScore(userAddress);
+    const score = scoreCalculation.totalScore;
+
+    console.log(`📊 Initial score calculated for new user ${userAddress}:`);
+    console.log(`   Total: ${score}/1000`);
+    console.log(`   Breakdown: wallet age=${scoreCalculation.breakdown.walletAgeScore}, balance=${scoreCalculation.breakdown.balanceScore}`);
+    console.log(`   Metadata: ${scoreCalculation.metadata.walletAgeDays} days old, ${scoreCalculation.metadata.walletBalanceETH} ETH`);
 
     // Get current timestamp
     const timeAtWhichAttested = Math.floor(Date.now() / 1000);
@@ -815,6 +851,40 @@ app.put('/profile/:username/compliance', async (req: Request, res: Response) => 
     res.status(500).json({ error: error.message || 'Failed to update compliance status' });
   }
 });
+
+// ==================== Sanctions Endpoints ====================
+
+// GET: Get sanctions list statistics
+app.get('/sanctions/stats', async (req: Request, res: Response) => {
+  try {
+    const stats = await getSanctionsStats();
+    res.json({
+      ...stats,
+      description: 'Statistics for sanctioned addresses from OFAC and other sources',
+    });
+  } catch (error: any) {
+    console.error('Error fetching sanctions stats:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch sanctions statistics' });
+  }
+});
+
+// POST: Force refresh sanctions list from GitHub
+app.post('/sanctions/refresh', async (req: Request, res: Response) => {
+  try {
+    await refreshSanctionsList();
+    const stats = await getSanctionsStats();
+    res.json({
+      success: true,
+      message: 'Sanctions list refreshed successfully',
+      stats,
+    });
+  } catch (error: any) {
+    console.error('Error refreshing sanctions list:', error);
+    res.status(500).json({ error: error.message || 'Failed to refresh sanctions list' });
+  }
+});
+
+// ==================== Document Processing Endpoints ====================
 
 // Summarize document endpoint
 app.post('/summarize-doc', async (req: Request, res: Response) => {
