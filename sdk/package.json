@@ -1,6 +1,6 @@
 {
   "name": "assura-sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TypeScript SDK and Solidity contracts for Assura Network - A compliance layer for blockchain applications",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -69,4 +69,3 @@
     }
   }
 }
-
