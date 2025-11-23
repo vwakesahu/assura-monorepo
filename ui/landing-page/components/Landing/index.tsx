@@ -62,15 +62,15 @@ export default function Landing() {
         >
 
             {/* Centered content */}
-            <div className="absolute top-[25%] left-1/2 -translate-x-1/2 max-w-[500px] text-foreground text-center">
-                <p className="text-lg font-light mb-4">Securing the next</p>
-                <p className='text-5xl font-light leading-tight'>Generation of Financial<br />Applications</p>
+            <div className="absolute top-[25%] left-1/2 -translate-x-1/2 max-w-[500px] w-[90%] px-4 text-foreground text-center">
+                <p className="text-sm sm:text-base md:text-lg font-light mb-2 sm:mb-4">Securing the next</p>
+                <p className='text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-light leading-tight'>Generation of Financial<br />Applications</p>
             </div>
 
-            <div className="absolute top-[calc(100vh-350px)]">
+            <div className="absolute top-[calc(100vh-350px)] sm:top-[calc(100vh-300px)] md:top-[calc(100vh-350px)]">
                 <div ref={slider} className="relative whitespace-nowrap">
-                    <p ref={firstText} className="relative m-0 text-foreground text-[230px] font-medium pr-[50px]">Policy Layer -</p>
-                    <p ref={secondText} className="absolute left-full top-0 m-0 text-foreground text-[230px] font-medium pr-[50px]">Policy Layer -</p>
+                    <p ref={firstText} className="relative m-0 text-foreground text-[60px] sm:text-[100px] md:text-[150px] lg:text-[200px] xl:text-[230px] font-medium pr-[20px] sm:pr-[30px] md:pr-[40px] lg:pr-[50px]">Policy Layer -</p>
+                    <p ref={secondText} className="absolute left-full top-0 m-0 text-foreground text-[60px] sm:text-[100px] md:text-[150px] lg:text-[200px] xl:text-[230px] font-medium pr-[20px] sm:pr-[30px] md:pr-[40px] lg:pr-[50px]">Policy Layer -</p>
                 </div>
             </div>
         </motion.main>

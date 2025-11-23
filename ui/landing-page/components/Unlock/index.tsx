@@ -39,9 +39,9 @@ export default function Unlock() {
 
     return (
 
-        <div ref={unlock} className="pl-[200px] pr-[200px] mt-[200px] flex justify-center">
-            <div className="max-w-[1400px] flex flex-col gap-[50px] relative">
-                <p className="m-0 text-[36px] gap-[8px] leading-[1.3] text-center">
+        <div ref={unlock} className="px-4 sm:px-6 md:px-12 lg:px-24 xl:pl-[200px] xl:pr-[200px] mt-[100px] sm:mt-[150px] md:mt-[200px] flex justify-center">
+            <div className="max-w-[1400px] flex flex-col gap-6 sm:gap-8 md:gap-[50px] relative">
+                <p className="m-0 text-xl sm:text-2xl md:text-3xl lg:text-[36px] gap-[8px] leading-[1.3] text-center px-4">
                     {
                         phrase.split(" ").map((word, index) => {
                             return (
@@ -62,7 +62,7 @@ export default function Unlock() {
                 <motion.p
                     variants={opacity}
                     animate={isInView ? "open" : "closed"}
-                    className="m-0 text-lg font-light text-center"
+                    className="m-0 text-base sm:text-lg font-light text-center px-4"
                 >
                     The next wave of financial innovation will come from bringing regulated markets onchain. Assura enables institutions to securely participate in digital asset markets while meeting their business and regulatory requirements.
                 </motion.p>

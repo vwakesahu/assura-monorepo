@@ -41,33 +41,34 @@ export default function Header() {
 
     return (
         <>
-            <div ref={header} className="absolute flex z-[1] top-0 text-foreground p-[35px] justify-between w-full font-light box-border items-center">
-                <div className="flex cursor-pointer items-center gap-3 group">
-                    <div className="relative w-12 h-12 shrink-0 transition-transform duration-500 ease-[cubic-bezier(0.76,0,0.24,1)] group-hover:rotate-360">
+            <div ref={header} className="absolute flex z-[1] top-0 text-foreground p-4 sm:p-6 md:p-[35px] justify-between w-full font-light box-border items-center">
+                <div className="flex cursor-pointer items-center gap-2 sm:gap-3 group">
+                    <div className="relative w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 shrink-0 transition-transform duration-500 ease-[cubic-bezier(0.76,0,0.24,1)] group-hover:rotate-360">
                         <Image
                             src="/images/Assura-Light.svg"
                             alt="Assura"
                             width={45}
                             height={45}
-                            className="absolute inset-0 m-auto dark:hidden"
+                            className="absolute inset-0 m-auto dark:hidden w-full h-full"
                         />
                         <Image
                             src="/images/Assura-Dark.svg"
                             alt="Assura"
                             width={45}
                             height={45}
-                            className="absolute inset-0 m-auto hidden dark:block"
+                            className="absolute inset-0 m-auto hidden dark:block w-full h-full"
                         />
                     </div>
-                    <span className="text-2xl font-medium -ml-5">Assura</span>
+                    <span className="text-lg sm:text-xl md:text-2xl font-medium -ml-2 sm:-ml-3 md:-ml-5">Assura</span>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
                     <Link href="https://app.assura.network">
                     <Button
                         variant="outline"
-                        className="rounded-full cursor-pointer py-6 px-6 bg-foreground text-background hover:bg-foreground/90 hover:text-background border-none shadow-none dark:bg-foreground dark:text-background dark:hover:bg-foreground/90 dark:hover:text-background"
+                        className="rounded-full cursor-pointer py-3 px-3 sm:py-4 sm:px-4 md:py-6 md:px-6 text-xs sm:text-sm md:text-base bg-foreground text-background hover:bg-foreground/90 hover:text-background border-none shadow-none dark:bg-foreground dark:text-background dark:hover:bg-foreground/90 dark:hover:text-background"
                     >
-                        Launch app
+                        <span className="hidden sm:inline">Launch app</span>
+                        <span className="sm:hidden">App</span>
                     </Button></Link>
                     <ThemeToggle />
                 </div>

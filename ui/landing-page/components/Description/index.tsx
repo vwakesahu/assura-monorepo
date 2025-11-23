@@ -37,9 +37,9 @@ export default function Description() {
     const isInView = useInView(description)
 
     return (
-        <div ref={description} className="pl-[200px] pr-[200px] mt-[200px] flex justify-center">
-            <div className="max-w-[1400px] flex gap-[50px] relative">
-                <p className="m-0 text-[36px] gap-[8px] leading-[1.3]">
+        <div ref={description} className="px-4 sm:px-6 md:px-12 lg:px-24 xl:pl-[200px] xl:pr-[200px] mt-[100px] sm:mt-[150px] md:mt-[200px] flex justify-center">
+            <div className="max-w-[1400px] flex flex-col lg:flex-row gap-6 sm:gap-8 md:gap-[50px] relative">
+                <p className="m-0 text-xl sm:text-2xl md:text-3xl lg:text-[36px] gap-[8px] leading-[1.3]">
                     {
                         phrase.split(" ").map((word, index) => {
                             return (
@@ -60,7 +60,7 @@ export default function Description() {
                 <motion.p
                     variants={opacity}
                     animate={isInView ? "open" : "closed"}
-                    className="m-0 text-lg w-[80%] font-light"
+                    className="m-0 text-base sm:text-lg w-full lg:w-[80%] font-light"
                 >
                     Assura enables financial technology companies to enforce compliance and business rule requirements for applications built on public blockchains.
                 </motion.p>

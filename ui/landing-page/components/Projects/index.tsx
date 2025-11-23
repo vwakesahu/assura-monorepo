@@ -75,13 +75,13 @@ export default function Projects() {
     const isInView = useInView(projectsRef);
 
     return (
-        <div ref={projectsRef} className="pl-[200px] pr-[200px] mt-[300px] flex justify-center">
+        <div ref={projectsRef} className="px-4 sm:px-6 md:px-12 lg:px-24 xl:pl-[200px] xl:pr-[200px] mt-[100px] sm:mt-[150px] md:mt-[200px] lg:mt-[300px] flex justify-center">
             <div className="max-w-[1400px] w-full">
-                <div className="grid grid-cols-2 gap-x-[100px] gap-y-[80px]">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 sm:gap-x-12 md:gap-x-[60px] lg:gap-x-[100px] gap-y-12 sm:gap-y-16 md:gap-y-[60px] lg:gap-y-[80px]">
                     {projects.map((project, index) => (
                         <React.Fragment key={index}>
                             <div>
-                                <h2 className="text-[48px] m-0 font-normal text-foreground">
+                                <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-[48px] m-0 font-normal text-foreground">
                                     {project.title.split(" ").map((word, i) => (
                                         <span key={i} className="relative overflow-hidden inline-flex mr-[3px]">
                                             <motion.span
@@ -102,7 +102,7 @@ export default function Projects() {
                                     animate={isInView ? "open" : "closed"}
                                     initial="initial"
                                     custom={index + 0.2}
-                                    className="text-lg font-light text-muted-foreground leading-relaxed m-0"
+                                    className="text-base sm:text-lg font-light text-muted-foreground leading-relaxed m-0"
                                 >
                                     {project.description}
                                 </motion.p>

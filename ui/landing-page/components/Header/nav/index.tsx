@@ -36,12 +36,12 @@ export default function Nav({ onClose }: { onClose?: () => void }) {
             initial="initial"
             animate="enter"
             exit="exit"
-            className="h-screen bg-card border-l fixed right-0 top-0 text-foreground z-[3]"
+            className="h-screen bg-card border-l fixed right-0 top-0 text-foreground z-[3] w-full sm:w-auto"
         >
-            <div className="box-border h-full p-[100px] flex flex-col justify-between">
+            <div className="box-border h-full p-8 sm:p-12 md:p-16 lg:p-[100px] flex flex-col justify-between">
                 <div
                     onMouseLeave={() => { setSelectedIndicator(null) }}
-                    className="flex flex-col text-[56px] gap-3 mt-20"
+                    className="flex flex-col text-3xl sm:text-4xl md:text-5xl lg:text-[56px] gap-3 mt-10 sm:mt-16 md:mt-20"
                 >
                     <div className="text-muted-foreground border-b border-muted-foreground uppercase text-[11px] mb-10">
                         <p>Navigation</p>
