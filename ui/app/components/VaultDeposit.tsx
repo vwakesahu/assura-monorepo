@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog'
-import { TOKENS } from '@/lib/constants'
+import { TOKENS, IMAGE_PATHS } from '@/lib/constants'
 import { currentChain } from '@/lib/constants'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -51,6 +51,16 @@ export default function VaultDeposit() {
       return parseFloat(formatUnits(usdcBalance.value, usdcBalance.decimals)).toFixed(2)
     }
     return '0.00'
+  }
+
+  // Check if user has no USDC
+  const hasNoUSDC = isConnected && selectedToken.symbol === 'USDC' && (
+    !usdcBalance ||
+    parseFloat(formatUnits(usdcBalance.value, usdcBalance.decimals)) === 0
+  )
+
+  const handleGetUSDC = () => {
+    window.open('https://faucet.circle.com/', '_blank')
   }
 
   const handleOpenDialog = () => {
@@ -189,6 +199,25 @@ export default function VaultDeposit() {
               </div>
             </div>
 
+            {/* Get USDC Button - Show when user has no USDC */}
+            {hasNoUSDC && (
+              <Button
+                onClick={handleGetUSDC}
+                variant="outline"
+                className="w-full h-14 text-lg font-light rounded-full mb-4 border-2 flex items-center justify-center gap-2"
+              >
+                <div className="relative w-5 h-5 rounded-full overflow-hidden">
+                  <Image
+                    src={IMAGE_PATHS.chains.baseSepolia}
+                    alt="Base"
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                Get USDC on Base Sepolia
+              </Button>
+            )}
+
             {/* Deposit Button */}
             {selectedToken.available && (
               <Button
@@ -241,6 +270,31 @@ export default function VaultDeposit() {
                     {parseFloat(formatUnits(balance.value, balance.decimals)).toFixed(2)} {selectedToken.symbol}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Show Get USDC button if user has no USDC */}
+            {hasNoUSDC && (
+              <div className="p-4 border border-border rounded-3xl bg-card/50">
+                <div className="text-xs font-light text-muted-foreground mb-3 uppercase tracking-wider">No USDC Balance</div>
+                <div className="text-sm font-light text-muted-foreground mb-4">
+                  You need USDC to deposit. Get free testnet USDC from Circle&apos;s faucet.
+                </div>
+                <Button
+                  onClick={handleGetUSDC}
+                  variant="outline"
+                  className="w-full h-16 text-base font-light border-2 flex items-center justify-center gap-2"
+                >
+                  <div className="relative overflow-hidden">
+                    <Image
+                      src={IMAGE_PATHS.chains.baseSepolia}
+                      alt="Base"
+                      width={24}
+                      height={24}
+                    />
+                  </div>
+                  Get USDC on Base Sepolia
+                </Button>
               </div>
             )}
 
