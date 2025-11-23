@@ -199,7 +199,7 @@ export default function VaultDeposit() {
   )
 
   const handleGetUSDC = () => {
-    window.open('https://faucet.circle.com/', '_blank')
+    window.open('https://www.assura.network/mint', '')
   }
 
   // Debounce recipient input to avoid excessive RPC calls
