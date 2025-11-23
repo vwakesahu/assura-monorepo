@@ -99,6 +99,8 @@ export default function VaultDeposit() {
   const [isDepositSuccess, setIsDepositSuccess] = useState(false)
   const [successTxHash, setSuccessTxHash] = useState<`0x${string}` | undefined>(undefined)
   const [depositedAmount, setDepositedAmount] = useState<string>('')
+  const [currentScore, setCurrentScore] = useState<number | null>(null)
+  const [isLoadingScore, setIsLoadingScore] = useState(false)
 
   // Send dialog state
   const [showSendDialog, setShowSendDialog] = useState(false)
@@ -129,6 +131,56 @@ export default function VaultDeposit() {
       setShowUsernameInput(false)
     }
   }, [address])
+
+  // Fetch compliance score when address changes or when dialog opens
+  useEffect(() => {
+    const fetchScore = async () => {
+      if (!address || !isConnected) {
+        setCurrentScore(null)
+        return
+      }
+
+      setIsLoadingScore(true)
+      try {
+        const currentChainId = chainId || currentChain.id
+
+        const requestBody: { userAddress: string; chainId: number; username?: string } = {
+          userAddress: address,
+          chainId: currentChainId,
+        }
+
+        // Don't send username if user is already registered (username exists in localStorage)
+        // Only send username if user is registering for the first time
+
+        const teeResponse = await fetch(`${TEE_SERVICE_URL}/attest`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        })
+
+        if (teeResponse.ok) {
+          const attestation = await teeResponse.json()
+          if (attestation.attestedData?.score !== undefined) {
+            setCurrentScore(Number(attestation.attestedData.score))
+          }
+        } else {
+          // If user not registered or other error, set score to null
+          setCurrentScore(null)
+        }
+      } catch (error) {
+        console.error('Error fetching score:', error)
+        setCurrentScore(null)
+      } finally {
+        setIsLoadingScore(false)
+      }
+    }
+
+    if (isConnected && address) {
+      fetchScore()
+    }
+  }, [address, isConnected, chainId])
 
   const { writeContractAsync, isPending, reset: resetWriteContract } = useWriteContract()
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined)
@@ -842,6 +894,14 @@ export default function VaultDeposit() {
                 <span className="text-muted-foreground">TVL </span>
                 <span className="text-foreground">$12.4M</span>
               </div>
+              {isConnected && (
+                <div>
+                  <span className="text-muted-foreground">Compliance Score </span>
+                  <span className="text-foreground">
+                    {isLoadingScore ? '...' : currentScore !== null ? currentScore : 'N/A'}
+                  </span>
+                </div>
+              )}
               {/* {balance && (
                 <div>
                   <span className="text-muted-foreground">Available </span>
@@ -1042,6 +1102,16 @@ export default function VaultDeposit() {
               )}
 
               <div className="space-y-4">
+                {/* Compliance Score */}
+                {isConnected && (
+                  <div className="p-4 border border-border rounded-3xl bg-card/50">
+                    <div className="text-xs font-light text-muted-foreground mb-2 uppercase tracking-wider">Compliance Score</div>
+                    <div className="text-2xl font-light text-foreground">
+                      {isLoadingScore ? 'Loading...' : currentScore !== null ? currentScore : 'N/A'}
+                    </div>
+                  </div>
+                )}
+
                 {/* Available Balance */}
                 {balance && (
                   <div className="p-4 border border-border rounded-3xl bg-card/50">
