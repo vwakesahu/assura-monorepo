@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
-import { Check } from 'lucide-react'
+import { Check, Send } from 'lucide-react'
 import { CustomConnectButton } from './CustomConnectButton'
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient } from 'wagmi'
-import { formatUnits, parseUnits } from 'viem'
+import { formatUnits, parseUnits, createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+import { useDebounce } from 'use-debounce'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import {
@@ -59,7 +61,7 @@ const VAULT_ABI = [
   },
 ] as const
 
-// ERC20 ABI for approvals
+// ERC20 ABI for approvals and transfers
 const ERC20_ABI = [
   {
     name: 'approve',
@@ -80,6 +82,16 @@ const ERC20_ABI = [
       { name: 'spender', type: 'address' },
     ],
     outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'transfer',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
   },
 ] as const
 
@@ -122,6 +134,18 @@ export default function VaultDeposit() {
   const [isDepositSuccess, setIsDepositSuccess] = useState(false)
   const [successTxHash, setSuccessTxHash] = useState<`0x${string}` | undefined>(undefined)
   const [depositedAmount, setDepositedAmount] = useState<string>('')
+
+  // Send dialog state
+  const [showSendDialog, setShowSendDialog] = useState(false)
+  const [sendAmount, setSendAmount] = useState('')
+  const [recipientInput, setRecipientInput] = useState('')
+  const [resolvedAddress, setResolvedAddress] = useState<`0x${string}` | null>(null)
+  const [ensTextRecords, setEnsTextRecords] = useState<Record<string, string>>({})
+  const [isResolvingEns, setIsResolvingEns] = useState(false)
+  const [isSendSuccess, setIsSendSuccess] = useState(false)
+  const [sendTxHash, setSendTxHash] = useState<`0x${string}` | undefined>(undefined)
+  const [sendTxHashForWait, setSendTxHashForWait] = useState<`0x${string}` | undefined>(undefined)
+
   const { address, isConnected, chainId } = useAccount()
 
   const { writeContractAsync, isPending, reset: resetWriteContract } = useWriteContract()
@@ -130,6 +154,16 @@ export default function VaultDeposit() {
     hash: txHash,
   })
   const publicClient = usePublicClient({ chainId: currentChain.id })
+
+  // Mainnet public client for ENS resolution - memoized to prevent recreation on every render
+  const mainnetPublicClient = useMemo(
+    () =>
+      createPublicClient({
+        chain: mainnet,
+        transport: http(),
+      }),
+    []
+  )
 
   const tokenAddress = selectedToken.available && 'address' in selectedToken
     ? selectedToken.address
@@ -185,6 +219,187 @@ export default function VaultDeposit() {
   const handleGetUSDC = () => {
     window.open('https://faucet.circle.com/', '_blank')
   }
+
+  // Debounce recipient input to avoid excessive RPC calls
+  const [debouncedRecipientInput] = useDebounce(recipientInput, 500)
+
+  // ENS Resolution using mainnet client
+  useEffect(() => {
+    const resolveENS = async () => {
+      if (!debouncedRecipientInput) {
+        setResolvedAddress(null)
+        setEnsTextRecords({})
+        setIsResolvingEns(false)
+        setError(null)
+        return
+      }
+
+      // Check if it's a valid address (starts with 0x and is 42 chars)
+      if (debouncedRecipientInput.startsWith('0x') && debouncedRecipientInput.length === 42) {
+        try {
+          // Validate address format
+          if (!/^0x[a-fA-F0-9]{40}$/.test(debouncedRecipientInput)) {
+            setError('Invalid address format')
+            setResolvedAddress(null)
+            setEnsTextRecords({})
+            setIsResolvingEns(false)
+            return
+          }
+          setResolvedAddress(debouncedRecipientInput as `0x${string}`)
+          setEnsTextRecords({})
+          setIsResolvingEns(false)
+          setError(null)
+        } catch (error) {
+          console.error('Address validation error:', error)
+          setError('Invalid address format')
+          setResolvedAddress(null)
+          setEnsTextRecords({})
+          setIsResolvingEns(false)
+        }
+        return
+      }
+
+      // Try to resolve ENS name using mainnet client
+      setIsResolvingEns(true)
+      setError(null)
+      try {
+        const address = await mainnetPublicClient.getEnsAddress({ name: debouncedRecipientInput })
+        if (address) {
+          setResolvedAddress(address)
+          setError(null)
+
+          // Fetch text records
+          try {
+            const resolver = await mainnetPublicClient.getEnsResolver({ name: debouncedRecipientInput })
+            if (resolver) {
+              // Fetch common text records
+              const textRecordKeys = ['description', 'url', 'avatar', 'com.twitter', 'com.github', 'com.discord', 'email']
+              const records: Record<string, string> = {}
+
+              for (const key of textRecordKeys) {
+                try {
+                  const value = await mainnetPublicClient.getEnsText({ name: debouncedRecipientInput, key })
+                  if (value) {
+                    records[key] = value
+                  }
+                } catch (textError) {
+                  // Ignore errors for individual text records
+                  console.debug(`Failed to fetch text record ${key}:`, textError)
+                }
+              }
+
+              setEnsTextRecords(records)
+            }
+          } catch (resolverError) {
+            // If text records fail, just continue with address
+            console.debug('Failed to get ENS resolver:', resolverError)
+            setEnsTextRecords({})
+          }
+        } else {
+          setResolvedAddress(null)
+          setEnsTextRecords({})
+          setError('ENS name not found')
+        }
+      } catch (error) {
+        console.error('ENS resolution error:', error)
+        const errorMessage = error instanceof Error ? error.message : 'Failed to resolve ENS name'
+        setError(errorMessage.includes('ENS name not found') || errorMessage.includes('not found')
+          ? 'ENS name not found'
+          : 'Failed to resolve ENS name. Please check the name and try again.')
+        setResolvedAddress(null)
+        setEnsTextRecords({})
+      } finally {
+        setIsResolvingEns(false)
+      }
+    }
+
+    resolveENS()
+  }, [debouncedRecipientInput, mainnetPublicClient])
+
+  // Handle send transfer
+  const handleSendTransfer = async (e?: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>) => {
+    if (e) {
+      e.preventDefault?.()
+    }
+
+    // Validation
+    if (!address || !isConnected) {
+      setError('Please connect your wallet')
+      return
+    }
+
+    if (!sendAmount || parseFloat(sendAmount) <= 0) {
+      setError('Please enter a valid amount')
+      return
+    }
+
+    if (!resolvedAddress) {
+      setError('Please enter a valid recipient address or ENS name')
+      return
+    }
+
+    if (!selectedToken.available || !('address' in selectedToken) || !selectedToken.address) {
+      setError('Invalid token selected')
+      return
+    }
+
+    // Check balance
+    if (balance) {
+      const balanceAmount = parseFloat(formatUnits(balance.value, balance.decimals))
+      const sendAmountNum = parseFloat(sendAmount)
+      if (sendAmountNum > balanceAmount) {
+        setError('Insufficient balance')
+        return
+      }
+    }
+
+    setIsLoading(true)
+    setError(null)
+    setSendTxHash(undefined)
+    setSendTxHashForWait(undefined)
+
+    try {
+      const amountInWei = parseUnits(sendAmount, selectedToken.decimals)
+
+      // Validate amount is not zero
+      if (amountInWei === BigInt(0)) {
+        throw new Error('Amount must be greater than zero')
+      }
+
+      const hash = await writeContractAsync({
+        address: selectedToken.address,
+        abi: ERC20_ABI,
+        functionName: 'transfer',
+        args: [resolvedAddress, amountInWei],
+      })
+
+      setSendTxHash(hash)
+      setSendTxHashForWait(hash)
+    } catch (err: unknown) {
+      console.error('Transfer error:', err)
+      setError(sanitizeErrorMessage(err))
+      setIsLoading(false)
+      setSendTxHash(undefined)
+      setSendTxHashForWait(undefined)
+    }
+  }
+
+  // Wait for send transaction
+  const { isLoading: isSendConfirming, isSuccess: isSendTxSuccess, isError: isSendTxError } = useWaitForTransactionReceipt({
+    hash: sendTxHashForWait,
+  })
+
+  useEffect(() => {
+    if (isSendTxSuccess && sendTxHashForWait) {
+      setIsSendSuccess(true)
+      setIsLoading(false)
+      setSendTxHash(sendTxHashForWait)
+    }
+    if (isSendTxError) {
+      setError('Transaction failed. Please try again.')
+      setIsLoading(false)
+    }
+  }, [isSendTxSuccess, isSendTxError, sendTxHashForWait])
 
   const handleOpenDialog = () => {
     if (!isConnected || !selectedToken.available) return
@@ -550,7 +765,28 @@ export default function VaultDeposit() {
             <span className="text-2xl font-medium -ml-5">Assura</span>
           </div>
           <div className="flex items-center gap-4">
-            <ThemeToggle />
+            
+            {isConnected && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowSendDialog(true)
+                  setRecipientInput('')
+                  setSendAmount('')
+                  setResolvedAddress(null)
+                  setEnsTextRecords({})
+                  setError(null)
+                  setIsSendSuccess(false)
+                  setSendTxHash(undefined)
+                  setSendTxHashForWait(undefined)
+                }}
+                className="rounded-full h-10 w-10 p-0 hover:opacity-70 transition-opacity"
+                title="Send"
+              >
+                <Send className="h-5 w-5" />
+              </Button>
+            )}<ThemeToggle />
             <CustomConnectButton />
           </div>
         </div>
@@ -900,6 +1136,210 @@ export default function VaultDeposit() {
                       : isSuccess
                         ? 'Success!'
                         : 'Confirm Deposit'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Send Dialog */}
+      <AlertDialog open={showSendDialog} onOpenChange={setShowSendDialog}>
+        <AlertDialogContent className="max-w-lg rounded-3xl p-6">
+          {isSendSuccess ? (
+            // Success State
+            <div className="flex flex-col items-center text-center py-8">
+              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-6">
+                <Check className="w-8 h-8 text-green-500" />
+              </div>
+              <h3 className="text-3xl font-light mb-2">Transfer Successful!</h3>
+              <p className="text-base font-light text-muted-foreground mb-6">
+                {sendAmount} {selectedToken.symbol} has been sent successfully.
+              </p>
+              {sendTxHash && (
+                <a
+                  href={`${currentChain.blockExplorers.default.url}/tx/${sendTxHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-background/90 hover:text-background underline text-sm font-light transition-colors mb-6"
+                >
+                  View on Block Explorer
+                </a>
+              )}
+              <Button
+                onClick={() => {
+                  setShowSendDialog(false)
+                  setIsSendSuccess(false)
+                  setSendTxHash(undefined)
+                  setSendTxHashForWait(undefined)
+                  setRecipientInput('')
+                  setSendAmount('')
+                  setResolvedAddress(null)
+                  setEnsTextRecords({})
+                }}
+                className="rounded-full font-light h-12 px-8 text-sm bg-background text-foreground hover:bg-background/90"
+              >
+                Close
+              </Button>
+            </div>
+          ) : (
+            // Send Form
+            <>
+              <AlertDialogHeader className="mb-4">
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden">
+                    <Image
+                      src={selectedToken.image}
+                      alt={selectedToken.name}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <AlertDialogTitle className="text-3xl font-light">Send {selectedToken.symbol}</AlertDialogTitle>
+                </div>
+                <AlertDialogDescription className="text-base font-light text-muted-foreground">
+                  Enter recipient address or ENS name and amount to send
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+
+              {error && (
+                <div className="p-4 border border-red-500/50 rounded-3xl bg-red-500/10">
+                  <div className="text-sm font-light text-red-500 break-all">{error}</div>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {/* Available Balance */}
+                {balance && (
+                  <div className="p-4 border border-border rounded-3xl bg-card/50">
+                    <div className="text-xs font-light text-muted-foreground mb-2 uppercase tracking-wider">Available Balance</div>
+                    <div className="flex items-center gap-3">
+                      <div className="relative w-8 h-8 rounded-full overflow-hidden">
+                        <Image
+                          src={selectedToken.image}
+                          alt={selectedToken.name}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <div className="text-2xl font-light text-foreground">
+                        {formatNumberWithCommas(
+                          parseFloat(formatUnits(balance.value, balance.decimals)),
+                          2
+                        )} {selectedToken.symbol}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Recipient Address/ENS Input */}
+                <div>
+                  <div className="text-xs font-light text-muted-foreground mb-2 uppercase tracking-wider">Recipient</div>
+                  <Input
+                    type="text"
+                    placeholder="0x... or ENS name"
+                    value={recipientInput}
+                    onChange={(e) => setRecipientInput(e.target.value)}
+                    className="text-2xl font-light h-16 border-2 border-border rounded-full bg-transparent focus-visible:ring-0 focus-visible:border-foreground transition-colors placeholder:text-lg"
+                  />
+                  {isResolvingEns && (
+                    <div className="text-sm font-light text-muted-foreground mt-2">Resolving ENS...</div>
+                  )}
+                  {resolvedAddress && !isResolvingEns && (
+                    <div className="mt-2">
+                      <div className="text-sm font-light text-foreground">
+                        {recipientInput.includes('.') ? `${recipientInput} → ` : ''}
+                        <span className="text-muted-foreground font-mono">{resolvedAddress}</span>
+                      </div>
+                      {/* ENS Text Records */}
+                      {Object.keys(ensTextRecords).length > 0 && (
+                        <div className="mt-3 p-3 border border-border rounded-2xl bg-card/30">
+                          <div className="text-xs font-light text-muted-foreground mb-2 uppercase tracking-wider">ENS Records</div>
+                          <div className="space-y-1">
+                            {Object.entries(ensTextRecords).map(([key, value]) => (
+                              <div key={key} className="flex justify-between items-center text-sm">
+                                <span className="font-light text-muted-foreground">{key}:</span>
+                                <span className="font-light text-foreground break-all ml-2">{value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Amount Input */}
+                <div>
+                  <div className="text-xs font-light text-muted-foreground mb-2 uppercase tracking-wider">Amount</div>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      placeholder="0.00"
+                      value={sendAmount}
+                      onChange={(e) => setSendAmount(e.target.value)}
+                      className="text-3xl font-light h-16 pr-20 border-0 border-b-2 border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-foreground transition-colors"
+                    />
+                    {balance && (
+                      <button
+                        onClick={() => {
+                          if (balance) {
+                            const formatted = formatUnits(balance.value, balance.decimals)
+                            setSendAmount(formatted)
+                          }
+                        }}
+                        className="absolute right-0 top-1/2 -translate-y-1/2 text-sm font-light text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Max
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Summary */}
+                {sendAmount && parseFloat(sendAmount) > 0 && resolvedAddress && (
+                  <div className="p-4 border border-border rounded-3xl bg-card/30">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-light text-muted-foreground">You will send</span>
+                      <span className="text-lg font-light text-foreground">{sendAmount} {selectedToken.symbol}</span>
+                    </div>
+                    <div className="h-px bg-border mb-2"></div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-light text-muted-foreground">To</span>
+                      <span className="text-sm font-light text-foreground font-mono break-all">
+                        {resolvedAddress}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <AlertDialogFooter className="gap-0 mt-4">
+                <AlertDialogCancel
+                  onClick={() => {
+                    setRecipientInput('')
+                    setSendAmount('')
+                    setResolvedAddress(null)
+                    setEnsTextRecords({})
+                    setError(null)
+                  }}
+                  className="rounded-full font-light h-12 px-8 text-sm"
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => handleSendTransfer(e)}
+                  disabled={
+                    !sendAmount ||
+                    parseFloat(sendAmount) <= 0 ||
+                    !resolvedAddress ||
+                    isLoading ||
+                    isSendConfirming ||
+                    isResolvingEns
+                  }
+                  className="rounded-full font-light h-12 px-8 text-sm"
+                >
+                  {isLoading || isSendConfirming ? 'Processing...' : isResolvingEns ? 'Resolving ENS...' : 'Send'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </>
